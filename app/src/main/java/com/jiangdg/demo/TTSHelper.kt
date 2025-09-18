@@ -21,7 +21,7 @@ class TTSHelper(context: Context) : TextToSpeech.OnInitListener {
 
     fun speak(text: String) {
         if (isReady) {
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+            tts?.speak("$text Under the vehicle", TextToSpeech.QUEUE_FLUSH, null, null)
         }
     }
 
