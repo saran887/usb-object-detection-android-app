@@ -30,7 +30,7 @@ import com.jiangdg.demo.databinding.ActivityMainBinding
 /**
  * Demos of camera usage
  *
- * @author Created by jiangdg on 2021/12/27
+ *
  */
 class MainActivity : AppCompatActivity() {
     private var mWakeLock: PowerManager.WakeLock? = null

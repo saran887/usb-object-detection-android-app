@@ -11,8 +11,8 @@ android {
         applicationId "com.jiangdg.ausbc"
         minSdkVersion 21
         targetSdkVersion rootProject.ext.versionTarget
-        versionCode rootProject.ext.versionCode
-        versionName rootProject.ext.versionNameString
+    versionCode 1
+    versionName '1'
 
         multiDexEnabled true
 

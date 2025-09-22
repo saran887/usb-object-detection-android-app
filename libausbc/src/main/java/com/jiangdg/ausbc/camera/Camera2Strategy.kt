@@ -1,18 +1,4 @@
-/*
- * Copyright 2017-2022 Jiangdg
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 package com.jiangdg.ausbc.camera
 
 import android.annotation.SuppressLint
@@ -41,12 +27,7 @@ import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.TimeUnit
 import kotlin.Exception
 
-/** Camera2 usage
- *
- * @author Created by jiangdg on 2021/12/20
- * Deprecated since version 3.3.0, and it will be deleted in the future.
- * I recommend using the [CameraUVC] API for your application.
- */
+    
 @kotlin.Deprecated("Deprecated since version 3.3.0")
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 class Camera2Strategy(ctx: Context) : ICameraStrategy(ctx) {
@@ -59,13 +40,11 @@ class Camera2Strategy(ctx: Context) : ICameraStrategy(ctx) {
     private var mImageSavePath: SettableFuture<String> = SettableFuture()
     private var mPreviewDataImageReader: ImageReader? = null
     private var mJpegImageReader: ImageReader? = null
-    // 输出到屏幕的Surface
+    
     private var mPreviewSurface: Surface? = null
-    // 输出到预览ImageReader的Surface
-    // 便于从中获取预览数据
+    
     private var mPreviewDataSurface: Surface? = null
-    // 输出到拍照ImageReader的Surface
-    // 便于从中获取拍照数据
+    
     private var mJpegDataSurface: Surface? = null
     private var mCameraManager: CameraManager? = null
     private var mYUVData: ByteArray? = null
@@ -466,9 +445,7 @@ class Camera2Strategy(ctx: Context) : ICameraStrategy(ctx) {
         return (sensorOrientation + myDeviceOrientation + 360) % 360
     }
 
-    /**
-     *  连接相机状态监听
-     */
+    
     private val mCameraStateCallBack = object : CameraDevice.StateCallback() {
         override fun onOpened(camera: CameraDevice) {
             mCameraDeviceFuture?.set(camera)
@@ -489,9 +466,7 @@ class Camera2Strategy(ctx: Context) : ICameraStrategy(ctx) {
         }
     }
 
-    /**
-     * session创建状态监听
-     */
+    
     private val mCreateSessionStateCallBack = object : CameraCaptureSession.StateCallback() {
         override fun onConfigured(session: CameraCaptureSession) {
             Logger.i(TAG, "configure session success in callback!")
@@ -504,9 +479,7 @@ class Camera2Strategy(ctx: Context) : ICameraStrategy(ctx) {
         }
     }
 
-    /**
-     * 拍照状态回调
-     */
+    
     private val mImageCaptureStateCallBack  = object : CameraCaptureSession.CaptureCallback() {
         override fun onCaptureStarted(
             session: CameraCaptureSession,
@@ -530,11 +503,7 @@ class Camera2Strategy(ctx: Context) : ICameraStrategy(ctx) {
         }
     }
 
-    /**
-     * 预览数据(YUV)回调
-     * YUV_420_888[] -> NV21[YYYYYYYY VUVU]
-     *
-     */
+    
     private val mPreviewAvailableListener = ImageReader.OnImageAvailableListener { imageReader ->
         val image = imageReader?.acquireNextImage()
         image?.use {
@@ -571,10 +540,7 @@ class Camera2Strategy(ctx: Context) : ICameraStrategy(ctx) {
         }
     }
 
-    /**
-     * 拍照数据(JPEG)回调
-     *      JPEG数据存放在plane[0]
-     */
+    
     @Suppress("DEPRECATION")
     private val mJpegAvailableListener = ImageReader.OnImageAvailableListener { imageReader ->
         val image = imageReader?.acquireNextImage()

@@ -1,5 +1,4 @@
 /*
-* Copyright 2017-2023 Jiangdg
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +25,7 @@ import com.jiangdg.ausbc.utils.OpenGLUtils
  * Attention: Your should set your context as the current context before creating fbo,
  *      Otherwise GLES20.glCheckFramebufferStatus=0 on some other devices!
  *
- * @author Created by jiangdg on 2021/12/27
+ *
  */
 abstract class AbstractFboRender(context: Context) : AbstractRender(context) {
     private val mFrameBuffers by lazy {
