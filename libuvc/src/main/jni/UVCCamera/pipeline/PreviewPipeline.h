@@ -1,5 +1,5 @@
 //
-// Created by saki on 15/11/06.
+
 //
 
 #ifndef PUPILMOBILE_PREVIEWPIPELINE_H

@@ -6,7 +6,7 @@
  *  YUV420sp：YYYYYYYY UVUV
  *  YUV420p：YYYYYYYY UU VV
  *
- * @author Created by jiangdg on 2022/2/18
+
  */
 
 #include "yuv.h"
