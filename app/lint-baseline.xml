@@ -1,0 +1,816 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.1.0" type="baseline" client="gradle" dependencies="false" name="AGP (8.1.0)" variant="all" version="8.1.0">
+
+    <issue
+        id="ScopedStorage"
+        message="WRITE_EXTERNAL_STORAGE no longer provides write access when targeting Android 11+, even when using `requestLegacyExternalStorage`"
+        errorLine1="    &lt;uses-permission android:name=&quot;android.permission.WRITE_EXTERNAL_STORAGE&quot; />"
+        errorLine2="                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="8"
+            column="36"/>
+    </issue>
+
+    <issue
+        id="TranslucentOrientation"
+        message="Should not specify screen orientation with translucent or floating theme"
+        errorLine1="        &lt;item name=&quot;android:windowIsFloating&quot;>false&lt;/item>"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/themes.xml"
+            line="56"
+            column="21"/>
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="32"
+            column="40"/>
+    </issue>
+
+    <issue
+        id="CustomSplashScreen"
+        message="The application should not provide its own launch screen"
+        errorLine1="class SplashActivity : AppCompatActivity() {"
+        errorLine2="      ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/jiangdg/demo/SplashActivity.kt"
+            line="29"
+            column="7"/>
+    </issue>
+
+    <issue
+        id="InflateParams"
+        message="Avoid passing `null` as the view root (needed to resolve layout parameters on the inflated layout&apos;s root element)"
+        errorLine1="            layoutInflater.inflate(R.layout.dialog_more, null).apply {"
+        errorLine2="                                                         ~~~~">
+        <location
+            file="src/main/java/com/jiangdg/demo/DemoFragment.kt"
+            line="774"
+            column="58"/>
+    </issue>
+
+    <issue
+        id="ProtectedPermissions"
+        message="Permission is only granted to system apps"
+        errorLine1="    &lt;uses-permission android:name=&quot;android.permission.READ_LOGS&quot; />"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="17"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.appcompat:appcompat than 1.3.1 is available: 1.7.1"
+        errorLine1="    implementation &quot;androidx.appcompat:appcompat:${androidXVersion}&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="52"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.core:core-ktx than 1.3.2 is available: 1.17.0"
+        errorLine1="    implementation &quot;androidx.core:core-ktx:${kotlinCoreVersion}&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="53"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test.ext:junit than 1.1.5 is available: 1.3.0"
+        errorLine1="    androidTestImplementation &apos;androidx.test.ext:junit:1.1.5&apos;"
+        errorLine2="                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="57"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test.espresso:espresso-core than 3.5.1 is available: 3.7.0"
+        errorLine1="    androidTestImplementation &apos;androidx.test.espresso:espresso-core:3.5.1&apos;"
+        errorLine2="                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="58"
+            column="31"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.android.material:material than 1.3.0 is available: 1.13.0"
+        errorLine1="    implementation &quot;com.google.android.material:material:${materialVersion}&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="61"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.constraintlayout:constraintlayout than 2.0.4 is available: 2.2.1"
+        errorLine1="    implementation &quot;androidx.constraintlayout:constraintlayout:${constraintlayoutVersion}&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="62"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-ktx than 2.2.0 is available: 2.9.3"
+        errorLine1="    implementation &quot;androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="64"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-livedata-ktx than 2.2.0 is available: 2.9.3"
+        errorLine1="    implementation &quot;androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="65"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-runtime-ktx than 2.2.0 is available: 2.9.3"
+        errorLine1="    implementation &quot;androidx.lifecycle:lifecycle-runtime-ktx:$lifecycle_version&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="66"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.github.bumptech.glide:glide than 4.10.0 is available: 4.12.0"
+        errorLine1="    implementation &quot;com.github.bumptech.glide:glide:4.10.0&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="build.gradle"
+            line="74"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="ExtraText"
+        message="Unexpected text found in drawable file: &quot;android:shape=&quot;rectangle&quot;>&quot;"
+        errorLine1="    android:shape=&quot;rectangle&quot;>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/drawable/bg_multi_camera_dialog.xml"
+            line="3"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UseCompatTextViewDrawableXml"
+        message="Use `app:drawableBottomCompat` instead of `android:drawableBottom`"
+        errorLine1="        android:drawableBottom=&quot;@drawable/ic_tab_line_blue&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effects.xml"
+            line="29"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseCompatTextViewDrawableXml"
+        message="Use `app:drawableBottomCompat` instead of `android:drawableBottom`"
+        errorLine1="        android:drawableBottom=&quot;@drawable/ic_tab_line_white&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effects.xml"
+            line="44"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseCompatTextViewDrawableXml"
+        message="Use `app:drawableBottomCompat` instead of `android:drawableBottom`"
+        errorLine1="            android:drawableBottom=&quot;@drawable/camera_bottom_dot_transparent&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="161"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseCompatTextViewDrawableXml"
+        message="Use `app:drawableBottomCompat` instead of `android:drawableBottom`"
+        errorLine1="            android:drawableBottom=&quot;@drawable/camera_bottom_dot_transparent&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="177"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseCompatTextViewDrawableXml"
+        message="Use `app:drawableBottomCompat` instead of `android:drawableBottom`"
+        errorLine1="            android:drawableBottom=&quot;@drawable/camera_bottom_dot_transparent&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="191"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `@color/black` with a theme that also paints a background (inferred theme is `@style/Theme_ClinkCameraDemo_NoActionBar`)"
+        errorLine1="    android:background=&quot;@color/black&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_main.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `@color/white` with a theme that also paints a background (inferred theme is `@style/Theme.ClinkCameraDemo`)"
+        errorLine1="    android:background=&quot;@color/white&quot;>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effects.xml"
+            line="6"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#fff` with a theme that also paints a background (inferred theme is `@style/Theme.ClinkCameraDemo`)"
+        errorLine1="    android:background=&quot;#fff&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/layout_tip_view.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.layout.activity_demo` appears to be unused"
+        errorLine1="&lt;androidx.constraintlayout.widget.ConstraintLayout xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;"
+        errorLine2="^">
+        <location
+            file="src/main/res/layout/activity_demo.xml"
+            line="2"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.camera_preview_dot_white` appears to be unused">
+        <location
+            file="src/main/res/mipmap-xhdpi/camera_preview_dot_white.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.camera_toolbar_zoom` appears to be unused">
+        <location
+            file="src/main/res/mipmap-xhdpi/camera_toolbar_zoom.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.camrea_common_bg_4r_white30` appears to be unused"
+        errorLine1="&lt;shape xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;>"
+        errorLine2="^">
+        <location
+            file="src/main/res/drawable/camrea_common_bg_4r_white30.xml"
+            line="2"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.color.purple_200` appears to be unused"
+        errorLine1="    &lt;color name=&quot;purple_200&quot;>#FFBB86FC&lt;/color>"
+        errorLine2="           ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/colors.xml"
+            line="3"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.color.transparent` appears to be unused"
+        errorLine1="    &lt;color name=&quot;transparent&quot;>#00000000&lt;/color>"
+        errorLine2="           ~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/colors.xml"
+            line="10"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.xml.default_device_filter` appears to be unused"
+        errorLine1="&lt;usb>"
+        errorLine2="^">
+        <location
+            file="src/main/res/xml/default_device_filter.xml"
+            line="2"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.dimen.fab_margin` appears to be unused"
+        errorLine1="    &lt;dimen name=&quot;fab_margin&quot;>16dp&lt;/dimen>"
+        errorLine2="           ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/dimens.xml"
+            line="2"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.filter3` appears to be unused">
+        <location
+            file="src/main/res/mipmap-xhdpi/filter3.jpg"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.filter4` appears to be unused">
+        <location
+            file="src/main/res/mipmap-xhdpi/filter4.jpg"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.filter5` appears to be unused">
+        <location
+            file="src/main/res/mipmap-xhdpi/filter5.jpg"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.filter6` appears to be unused">
+        <location
+            file="src/main/res/mipmap-xhdpi/filter6.jpg"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.ic_launcher` appears to be unused"
+        errorLine1="&lt;adaptive-icon xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;>"
+        errorLine2="^">
+        <location
+            file="src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+            line="2"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.ic_launcher_background` appears to be unused"
+        errorLine1="&lt;vector xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;"
+        errorLine2="^">
+        <location
+            file="src/main/res/drawable/ic_launcher_background.xml"
+            line="2"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.ic_launcher_foreground` appears to be unused"
+        errorLine1="&lt;vector xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;"
+        errorLine2="^">
+        <location
+            file="src/main/res/drawable-v24/ic_launcher_foreground.xml"
+            line="1"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.mipmap.ic_launcher_round` appears to be unused"
+        errorLine1="&lt;adaptive-icon xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;>"
+        errorLine2="^">
+        <location
+            file="src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
+            line="2"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.style.Theme_ClinkCameraDemo_AppBarOverlay` appears to be unused"
+        errorLine1="    &lt;style name=&quot;Theme.ClinkCameraDemo.AppBarOverlay&quot; parent=&quot;ThemeOverlay.AppCompat.Dark.ActionBar&quot; />"
+        errorLine2="           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/themes.xml"
+            line="22"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.style.Theme_ClinkCameraDemo_PopupOverlay` appears to be unused"
+        errorLine1="    &lt;style name=&quot;Theme.ClinkCameraDemo.PopupOverlay&quot; parent=&quot;ThemeOverlay.AppCompat.Light&quot; />"
+        errorLine2="           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/themes.xml"
+            line="24"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="IconLauncherShape"
+        message="Launcher icon used as round icon did not have a circular shape">
+        <location
+            file="src/main/res/mipmap-xhdpi/ic_logo.png"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effect_item.xml"
+            line="7"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effect_item.xml"
+            line="16"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="22"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="41"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="61"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="81"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_multi_cameras.xml"
+            line="9"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="19"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="39"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="49"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="58"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="67"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="76"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="127"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="        &lt;ImageView"
+        errorLine2="         ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="211"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/layout_item_camera.xml"
+            line="29"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/layout_item_camera.xml"
+            line="39"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ContentDescription"
+        message="Missing `contentDescription` attribute on image"
+        errorLine1="    &lt;ImageView"
+        errorLine2="     ~~~~~~~~~">
+        <location
+            file="src/main/res/layout/layout_item_camera.xml"
+            line="49"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="KeyboardInaccessibleWidget"
+        message="&apos;clickable&apos; attribute found, please also add &apos;focusable&apos;"
+        errorLine1="        android:clickable=&quot;true&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effects.xml"
+            line="28"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="Do not concatenate text displayed with `setText`. Use resource string with placeholders."
+        errorLine1="            mViewBinding.frameRateTv.text = &quot;frame rate:  $it fps&quot;"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/jiangdg/demo/DemoFragment.kt"
+            line="169"
+            column="45"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            mViewBinding.frameRateTv.text = &quot;frame rate:  $it fps&quot;"
+        errorLine2="                                             ~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/jiangdg/demo/DemoFragment.kt"
+            line="169"
+            column="46"/>
+    </issue>
+
+    <issue
+        id="SetTextI18n"
+        message="String literal in `setText` can not be translated. Use Android resources instead."
+        errorLine1="            mViewBinding.frameRateTv.text = &quot;frame rate:  $it fps&quot;"
+        errorLine2="                                                             ~~~~">
+        <location
+            file="src/main/java/com/jiangdg/demo/DemoFragment.kt"
+            line="169"
+            column="62"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;Filter&quot;, should use `@string` resource"
+        errorLine1="        android:text=&quot;Filter&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effects.xml"
+            line="31"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;Animation&quot;, should use `@string` resource"
+        errorLine1="        android:text=&quot;Animation&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_effects.xml"
+            line="47"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;multiplex&quot;, should use `@string` resource"
+        errorLine1="        android:text=&quot;multiplex&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="36"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;Contract&quot;, should use `@string` resource"
+        errorLine1="        android:text=&quot;Contract&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="55"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;Resolution&quot;, should use `@string` resource"
+        errorLine1="        android:text=&quot;Resolution&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="75"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;Contact&quot;, should use `@string` resource"
+        errorLine1="        android:text=&quot;Contact&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_more.xml"
+            line="94"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;photo&quot;, should use `@string` resource"
+        errorLine1="            android:text=&quot;photo&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="164"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;video&quot;, should use `@string` resource"
+        errorLine1="            android:text=&quot;video&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="179"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;audio&quot;, should use `@string` resource"
+        errorLine1="            android:text=&quot;audio&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="193"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;00:00&quot;, should use `@string` resource"
+        errorLine1="            android:text=&quot;00:00&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_demo.xml"
+            line="227"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="HardcodedText"
+        message="Hardcoded string &quot;NO UVC CAMERAS&quot;, should use `@string` resource"
+        errorLine1="        android:text=&quot;NO UVC CAMERAS&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/fragment_multi_camera.xml"
+            line="21"
+            column="9"/>
+    </issue>
+
+</issues>
