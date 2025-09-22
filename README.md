@@ -1,4 +1,4 @@
-# Android USB Camera with Object Detection & Voice
+ # Android USB Camera with Object Detection & Voice
 
 This app lets you:
 - Access a USB camera on Android (OTG required)

@@ -7,6 +7,9 @@ import java.util.Locale
 class TTSHelper(context: Context) : TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
     private var isReady = false
+    private var lastSpokenLabel: String? = null
+    private var lastSpokenTime: Long = 0L
+    private val cooldownMillis: Long = 3000L
 
     init {
         tts = TextToSpeech(context.applicationContext, this)
@@ -19,9 +22,15 @@ class TTSHelper(context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    fun speak(text: String) {
-        if (isReady) {
-            tts?.speak("$text Under the vehicle", TextToSpeech.QUEUE_FLUSH, null, null)
+    fun speak(label: String, confidence: Float) {
+        val now = System.currentTimeMillis()
+        if (!isReady) return
+        if (confidence <= 0.6f) return
+        val shouldSpeak = (label != lastSpokenLabel) || (now - lastSpokenTime > cooldownMillis)
+        if (shouldSpeak) {
+            tts?.speak("$label Under the vehicle", TextToSpeech.QUEUE_FLUSH, null, null)
+            lastSpokenLabel = label
+            lastSpokenTime = now
         }
     }
 

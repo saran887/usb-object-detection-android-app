@@ -28,7 +28,7 @@
             android:name="com.jiangdg.demo.SplashActivity"
             android:exported="true"
             android:theme="@style/SplashActivityStyle"
-            android:screenOrientation="fullSensor">
+            android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -38,7 +38,7 @@
 
         <activity android:name="com.jiangdg.demo.MainActivity"
             android:theme="@style/Theme.ClinkCameraDemo.NoActionBar"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="landscape" />
 
         <receiver android:name=".UsbReceiver" android:exported="true">
             <intent-filter>
