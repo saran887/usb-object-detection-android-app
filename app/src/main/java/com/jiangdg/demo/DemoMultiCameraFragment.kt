@@ -72,6 +72,10 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     private var permissionRequestInProgress = false
     private var pendingPermissionCount = 0
     
+    // Connection state tracking to prevent duplicate logging
+    private val connectingDevices = mutableSetOf<Int>() // Track device IDs currently being connected
+    private val establishedDevices = mutableSetOf<Int>() // Track device IDs that are fully established
+    
     // USB permission broadcast receiver
     private val usbPermissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -291,39 +295,58 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         val deviceName = device.deviceName
         val deviceId = device.deviceId
         
-        Log.i("DemoMultiCameraFragment", "═══════════════════════════════════════")
-        Log.i("DemoMultiCameraFragment", "USB CAMERA CONNECTION ATTEMPT")
-        Log.i("DemoMultiCameraFragment", "Device Name: $deviceName")
-        Log.i("DemoMultiCameraFragment", "Device ID: $deviceId")
-        Log.i("DemoMultiCameraFragment", "Vendor ID: ${device.vendorId}")
-        Log.i("DemoMultiCameraFragment", "Product ID: ${device.productId}")
-        Log.i("DemoMultiCameraFragment", "Device Path: ${device.deviceName}")
+        // Check if this device is already established - if so, skip duplicate processing
+        if (establishedDevices.contains(deviceId)) {
+            Log.d("DemoMultiCameraFragment", "🔄 DUPLICATE CONNECTION ATTEMPT - Device $deviceId already established, ignoring")
+            return
+        }
+        
+        // Check if this device is currently being connected - reduce logging for repeated attempts
+        val isFirstAttempt = !connectingDevices.contains(deviceId)
+        if (isFirstAttempt) {
+            connectingDevices.add(deviceId)
+            Log.i("DemoMultiCameraFragment", "═══════════════════════════════════════")
+            Log.i("DemoMultiCameraFragment", "🔌 NEW USB CAMERA CONNECTION ATTEMPT")
+            Log.i("DemoMultiCameraFragment", "Device Name: $deviceName")
+            Log.i("DemoMultiCameraFragment", "Device ID: $deviceId")
+            Log.i("DemoMultiCameraFragment", "Vendor ID: ${device.vendorId}")
+            Log.i("DemoMultiCameraFragment", "Product ID: ${device.productId}")
+            Log.i("DemoMultiCameraFragment", "Device Path: ${device.deviceName}")
+        } else {
+            Log.d("DemoMultiCameraFragment", "🔄 RETRY CONNECTION - Device $deviceId (${device.deviceName})")
+        }
         
         // Check if we have USB permission for this device
         val usbManager = requireContext().getSystemService(Context.USB_SERVICE) as UsbManager
         val hasPermission = usbManager.hasPermission(device)
         
-        Log.i("DemoMultiCameraFragment", "USB Permission Status: ${if (hasPermission) "GRANTED" else "DENIED"}")
+        if (isFirstAttempt) {
+            Log.i("DemoMultiCameraFragment", "USB Permission Status: ${if (hasPermission) "GRANTED" else "DENIED"}")
+        }
         
         if (!hasPermission) {
-            Log.w("DemoMultiCameraFragment", "❌ USB PERMISSION REQUIRED")
-            Log.w("DemoMultiCameraFragment", "User has not given permission to access device $deviceName")
-            Log.w("DemoMultiCameraFragment", "Device path: ${device.deviceName}")
-            Log.w("DemoMultiCameraFragment", "Adding camera to pending queue for permission request")
-            
-            ToastUtils.show("PENDING: Camera $deviceName needs USB permission")
-            // Add to pending cameras and request permissions for all devices
-            if (!pendingCameras.contains(camera)) {
-                pendingCameras.add(camera)
-                Log.i("DemoMultiCameraFragment", "Camera added to pending queue. Total pending: ${pendingCameras.size}")
-                // Update display to show pending camera added
-                updateCameraCountDisplay()
+            if (isFirstAttempt) {
+                Log.w("DemoMultiCameraFragment", "❌ USB PERMISSION REQUIRED")
+                Log.w("DemoMultiCameraFragment", "User has not given permission to access device $deviceName")
+                Log.w("DemoMultiCameraFragment", "Device path: ${device.deviceName}")
+                Log.w("DemoMultiCameraFragment", "Adding camera to pending queue for permission request")
+                
+                ToastUtils.show("PENDING: Camera $deviceName needs USB permission")
+                // Add to pending cameras and request permissions for all devices
+                if (!pendingCameras.contains(camera)) {
+                    pendingCameras.add(camera)
+                    Log.i("DemoMultiCameraFragment", "Camera added to pending queue. Total pending: ${pendingCameras.size}")
+                    // Update display to show pending camera added
+                    updateCameraCountDisplay()
+                }
+                requestUsbPermissionForAllCameras()
             }
-            requestUsbPermissionForAllCameras()
             return // Don't proceed until permission is granted
         }
         
-        Log.i("DemoMultiCameraFragment", "✅ USB PERMISSION GRANTED - Proceeding with connection")
+        if (isFirstAttempt) {
+            Log.i("DemoMultiCameraFragment", "✅ USB PERMISSION GRANTED - Proceeding with connection")
+        }
         
         // Safely get serial number - handle permission issues
         val serialNumber = try {
@@ -372,12 +395,22 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         
         if (isDuplicate) {
             ToastUtils.show("DUPLICATE: This camera is already connected - ignoring")
+            // Remove from connecting devices since we're not proceeding
+            connectingDevices.remove(deviceId)
             return
         }
         
-        // Add to connected cameras list
+        // Add to connected cameras list and mark as established
         connectedCameras.add(camera)
+        establishedDevices.add(deviceId)
+        connectingDevices.remove(deviceId) // Remove from connecting since now established
+        
         val cameraSlot = connectedCameras.size
+        Log.i("DemoMultiCameraFragment", "✅ CAMERA SUCCESSFULLY ESTABLISHED")
+        Log.i("DemoMultiCameraFragment", "Camera slot: $cameraSlot of 4")
+        Log.i("DemoMultiCameraFragment", "Total connected cameras: ${connectedCameras.size}")
+        Log.i("DemoMultiCameraFragment", "Established devices: ${establishedDevices.size}")
+        
         ToastUtils.show("ADDED: Camera $cameraSlot of 4 - Total connected: ${connectedCameras.size}")
         
         // Update camera count display
@@ -837,11 +870,16 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     protected override fun onCameraDisConnected(camera: MultiCameraClient.ICamera) {
         val device = camera.getUsbDevice()
         val deviceName = device.deviceName
+        val deviceId = device.deviceId
         
         Log.i("DemoMultiCameraFragment", "📤 CAMERA DISCONNECTION")
         Log.i("DemoMultiCameraFragment", "Device Name: $deviceName")
-        Log.i("DemoMultiCameraFragment", "Device ID: ${device.deviceId}")
+        Log.i("DemoMultiCameraFragment", "Device ID: $deviceId")
         Log.i("DemoMultiCameraFragment", "Connected cameras before removal: ${connectedCameras.size}")
+        
+        // Clean up connection state tracking
+        connectingDevices.remove(deviceId)
+        establishedDevices.remove(deviceId)
         
         connectedCameras.remove(camera)
         camera.closeCamera()
@@ -867,6 +905,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         }
         
         Log.i("DemoMultiCameraFragment", "Connected cameras after removal: ${connectedCameras.size}")
+        Log.i("DemoMultiCameraFragment", "Connection state cleaned - Connecting: ${connectingDevices.size}, Established: ${establishedDevices.size}")
         ToastUtils.show("Camera disconnected: $deviceName")
         
         // Update camera count display
