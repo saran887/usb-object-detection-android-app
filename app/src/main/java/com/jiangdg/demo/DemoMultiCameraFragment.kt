@@ -76,6 +76,10 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     private val connectingDevices = mutableSetOf<Int>() // Track device IDs currently being connected
     private val establishedDevices = mutableSetOf<Int>() // Track device IDs that are fully established
     
+    // Frame tracking for preview status logging
+    private val frameCounters = mutableMapOf<Int, Int>() // Track frame count per camera
+    private val lastFrameTime = mutableMapOf<Int, Long>() // Track last frame time per camera
+    
     // USB permission broadcast receiver
     private val usbPermissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -516,6 +520,27 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                             ) {
                                 // Check if fragment is still alive before processing
                                 if (isAdded && view != null && data != null) {
+                                    // Track frame count and timing for preview status
+                                    val currentTime = System.currentTimeMillis()
+                                    val frameCount = frameCounters.getOrDefault(cameraIndex, 0) + 1
+                                    frameCounters[cameraIndex] = frameCount
+                                    lastFrameTime[cameraIndex] = currentTime
+                                    
+                                    // Log first frame received
+                                    if (frameCount == 1) {
+                                        Log.i("DemoMultiCameraFragment", "🎬 FIRST FRAME RECEIVED - Camera $cameraIndex")
+                                        Log.i("DemoMultiCameraFragment", "Resolution: ${width}x${height}")
+                                        Log.i("DemoMultiCameraFragment", "Format: $format")
+                                        Log.i("DemoMultiCameraFragment", "Data Size: ${data.size} bytes")
+                                        Log.i("DemoMultiCameraFragment", "✅ PREVIEW IS WORKING for Camera $cameraIndex")
+                                        ToastUtils.show("PREVIEW ACTIVE: Camera $cameraIndex (${width}x${height})")
+                                    }
+                                    
+                                    // Log every 100th frame for ongoing status
+                                    if (frameCount % 100 == 0) {
+                                        Log.d("DemoMultiCameraFragment", "📹 PREVIEW STATUS: Camera $cameraIndex - Frame $frameCount (${width}x${height})")
+                                    }
+                                    
                                     when (format) {
                                         IPreviewDataCallBack.DataFormat.NV21 -> {
                                             processFrame(data, width, height, cameraIndex)
@@ -525,9 +550,14 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                                         }
                                         else -> {
                                             // Try to process anyway for unknown formats
+                                            if (frameCount == 1) {
+                                                Log.w("DemoMultiCameraFragment", "⚠️ UNKNOWN FORMAT: Camera $cameraIndex using format $format")
+                                            }
                                             processFrame(data, width, height, cameraIndex)
                                         }
                                     }
+                                } else {
+                                    Log.w("DemoMultiCameraFragment", "❌ PREVIEW DATA DROPPED: Camera $cameraIndex - Fragment not ready or data null")
                                 }
                             }
                         })
@@ -542,8 +572,56 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
             }
             
         } catch (e: Exception) {
+            Log.e("DemoMultiCameraFragment", "❌ CAMERA $cameraIndex SETUP FAILED: ${e.message}", e)
             ToastUtils.show("SETUP FAILED: Camera $cameraIndex - ${e.message}")
-            e.printStackTrace()
+        }
+    }
+    
+    private fun startStalledCameraMonitoring() {
+        // Check for stalled cameras every 10 seconds
+        val stalledCheckRunnable = object : Runnable {
+            override fun run() {
+                if (isAdded && view != null) {
+                    checkForStalledCameras()
+                    mainHandler.postDelayed(this, 10000) // Check again in 10 seconds
+                }
+            }
+        }
+        mainHandler.postDelayed(stalledCheckRunnable, 10000) // Start checking after 10 seconds
+    }
+    
+    private fun checkForStalledCameras() {
+        if (!isAdded || view == null) return
+        
+        val currentTime = System.currentTimeMillis()
+        for (cameraIndex in 1..4) {
+            val lastFrame = lastFrameTime[cameraIndex]
+            val frameCount = frameCounters[cameraIndex] ?: 0
+            
+            // Only check cameras that should be connected
+            val isConnected = when (cameraIndex) {
+                1 -> mCamera1 != null
+                2 -> mCamera2 != null
+                3 -> mCamera3 != null
+                4 -> mCamera4 != null
+                else -> false
+            }
+            
+            if (isConnected) {
+                if (frameCount == 0) {
+                    // No frames received at all for connected camera
+                    Log.w("DemoMultiCameraFragment", "⚠️ NO FRAMES: Camera $cameraIndex is connected but not receiving preview frames")
+                    Log.w("DemoMultiCameraFragment", "This may indicate a preview initialization issue")
+                } else if (lastFrame != null && (currentTime - lastFrame) > 5000) {
+                    // No frames in last 5 seconds for previously working camera
+                    Log.w("DemoMultiCameraFragment", "⚠️ STALLED PREVIEW: Camera $cameraIndex stopped receiving frames")
+                    Log.w("DemoMultiCameraFragment", "Last frame: ${(currentTime - lastFrame)/1000}s ago, Total frames: $frameCount")
+                    ToastUtils.show("WARNING: Camera $cameraIndex preview may be stalled")
+                } else if (frameCount > 0) {
+                    // Camera is working fine
+                    Log.d("DemoMultiCameraFragment", "✅ PREVIEW OK: Camera $cameraIndex - $frameCount frames, last ${(currentTime - (lastFrame ?: currentTime))/1000}s ago")
+                }
+            }
         }
     }
 
@@ -636,29 +714,109 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         code: ICameraStateCallBack.State,
         msg: String?
     ) {
-        val deviceName = self.getUsbDevice().deviceName
-        ToastUtils.show("STATE CHANGE: Camera $deviceName -> $code")
+        val device = self.getUsbDevice()
+        val deviceName = device.deviceName
+        val deviceId = device.deviceId
+        val cameraIndex = when (self) {
+            mCamera1 -> 1
+            mCamera2 -> 2
+            mCamera3 -> 3
+            mCamera4 -> 4
+            else -> 0
+        }
+        
+        Log.i("DemoMultiCameraFragment", "═══════════════════════════════════════")
+        Log.i("DemoMultiCameraFragment", "🎬 CAMERA STATE CHANGE")
+        Log.i("DemoMultiCameraFragment", "Camera Index: $cameraIndex")
+        Log.i("DemoMultiCameraFragment", "Device Name: $deviceName")
+        Log.i("DemoMultiCameraFragment", "Device ID: $deviceId")
+        Log.i("DemoMultiCameraFragment", "State: $code")
+        Log.i("DemoMultiCameraFragment", "Message: ${msg ?: "none"}")
+        
+        ToastUtils.show("STATE CHANGE: Camera $cameraIndex ($deviceName) -> $code")
+        
         when (code) {
             ICameraStateCallBack.State.ERROR -> {
-                ToastUtils.show("CAMERA ERROR: ($deviceName) ${msg ?: "unknown error"}")
+                Log.e("DemoMultiCameraFragment", "❌ CAMERA $cameraIndex ERROR")
+                Log.e("DemoMultiCameraFragment", "Device: $deviceName")
+                Log.e("DemoMultiCameraFragment", "Error Message: ${msg ?: "unknown error"}")
+                Log.e("DemoMultiCameraFragment", "Preview Status: FAILED - Camera cannot display video")
+                
+                ToastUtils.show("CAMERA ERROR: Camera $cameraIndex - ${msg ?: "unknown error"}")
+                ToastUtils.show("ERROR: Preview will NOT work for Camera $cameraIndex")
+                
                 // Try to restart camera after error
                 Handler(Looper.getMainLooper()).postDelayed({
                     try {
-                        ToastUtils.show("RESTART: Attempting to restart camera $deviceName")
+                        Log.i("DemoMultiCameraFragment", "🔄 ATTEMPTING CAMERA $cameraIndex RESTART")
+                        ToastUtils.show("RESTART: Attempting to restart Camera $cameraIndex")
                         restartCamera(self)
                     } catch (e: Exception) {
-                        ToastUtils.show("RESTART FAILED: ${e.message}")
+                        Log.e("DemoMultiCameraFragment", "❌ CAMERA $cameraIndex RESTART FAILED: ${e.message}")
+                        ToastUtils.show("RESTART FAILED: Camera $cameraIndex - ${e.message}")
                     }
                 }, 2000)
             }
             ICameraStateCallBack.State.OPENED -> {
-                ToastUtils.show("CAMERA OPENED: $deviceName - Video should appear now!")
+                Log.i("DemoMultiCameraFragment", "✅ CAMERA $cameraIndex OPENED SUCCESSFULLY")
+                Log.i("DemoMultiCameraFragment", "Device: $deviceName")
+                Log.i("DemoMultiCameraFragment", "Preview Status: READY - Video should be visible now")
+                Log.i("DemoMultiCameraFragment", "TextureView Slot: Camera $cameraIndex")
+                
+                ToastUtils.show("CAMERA OPENED: Camera $cameraIndex - Video should appear now!")
+                ToastUtils.show("SUCCESS: Preview started for Camera $cameraIndex")
+                
+                // Check if preview is actually showing after a delay
+                Handler(Looper.getMainLooper()).postDelayed({
+                    checkPreviewStatus(self, cameraIndex)
+                }, 3000)
             }
             ICameraStateCallBack.State.CLOSED -> {
-                ToastUtils.show("CAMERA CLOSED: $deviceName")
+                Log.i("DemoMultiCameraFragment", "📤 CAMERA $cameraIndex CLOSED")
+                Log.i("DemoMultiCameraFragment", "Device: $deviceName")
+                Log.i("DemoMultiCameraFragment", "Preview Status: STOPPED - Video feed ended")
+                
+                ToastUtils.show("CAMERA CLOSED: Camera $cameraIndex")
+                ToastUtils.show("STOPPED: Preview ended for Camera $cameraIndex")
+                
                 // Remove from connected cameras
                 connectedCameras.remove(self)
+                updateCameraCountDisplay()
             }
+        }
+        
+        Log.i("DemoMultiCameraFragment", "═══════════════════════════════════════")
+    }
+    
+    private fun checkPreviewStatus(camera: MultiCameraClient.ICamera, cameraIndex: Int) {
+        if (!isAdded || view == null) return
+        
+        try {
+            val device = camera.getUsbDevice()
+            val textureView = when (cameraIndex) {
+                1 -> mTextureView1
+                2 -> mTextureView2
+                3 -> mTextureView3
+                4 -> mTextureView4
+                else -> null
+            }
+            
+            Log.i("DemoMultiCameraFragment", "🔍 PREVIEW STATUS CHECK - Camera $cameraIndex")
+            Log.i("DemoMultiCameraFragment", "Device: ${device.deviceName}")
+            Log.i("DemoMultiCameraFragment", "TextureView Available: ${textureView?.isAvailable}")
+            Log.i("DemoMultiCameraFragment", "TextureView Size: ${textureView?.width}x${textureView?.height}")
+            
+            if (textureView?.isAvailable == true && textureView.width > 0 && textureView.height > 0) {
+                Log.i("DemoMultiCameraFragment", "✅ PREVIEW STATUS: Camera $cameraIndex is displaying video")
+                Log.i("DemoMultiCameraFragment", "Resolution: ${textureView.width}x${textureView.height}")
+                ToastUtils.show("PREVIEW OK: Camera $cameraIndex showing ${textureView.width}x${textureView.height}")
+            } else {
+                Log.w("DemoMultiCameraFragment", "⚠️ PREVIEW STATUS: Camera $cameraIndex may not be displaying video")
+                Log.w("DemoMultiCameraFragment", "TextureView issues detected")
+                ToastUtils.show("PREVIEW ISSUE: Camera $cameraIndex may not be showing video")
+            }
+        } catch (e: Exception) {
+            Log.e("DemoMultiCameraFragment", "❌ PREVIEW STATUS CHECK FAILED: Camera $cameraIndex - ${e.message}")
         }
     }
     
@@ -673,10 +831,15 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 else -> return
             }
             
+            Log.i("DemoMultiCameraFragment", "🔄 RESTARTING CAMERA $cameraIndex")
+            
             // Close and reopen
             camera.closeCamera()
             Handler(Looper.getMainLooper()).postDelayed({
-                setupCamera(camera, null, cameraIndex)
+                if (isAdded && view != null) {
+                    Log.i("DemoMultiCameraFragment", "🔄 REOPENING CAMERA $cameraIndex")
+                    setupCamera(camera, null, cameraIndex)
+                }
             }, 1000)
         } catch (e: Exception) {
             ToastUtils.show("Restart failed: ${e.message}")
@@ -714,6 +877,9 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
             
             // Initialize TTS helper
             ttsHelper = TTSHelper(requireContext())
+            
+            // Start periodic stalled camera checking
+            startStalledCameraMonitoring()
             
             ToastUtils.show("All camera views initialized successfully")
         } catch (e: Exception) {
@@ -892,6 +1058,20 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         // Clean up connection state tracking
         connectingDevices.remove(deviceId)
         establishedDevices.remove(deviceId)
+        
+        // Clean up frame tracking
+        val cameraIndex = when (camera) {
+            mCamera1 -> 1
+            mCamera2 -> 2
+            mCamera3 -> 3
+            mCamera4 -> 4
+            else -> 0
+        }
+        if (cameraIndex > 0) {
+            frameCounters.remove(cameraIndex)
+            lastFrameTime.remove(cameraIndex)
+            Log.i("DemoMultiCameraFragment", "🧹 FRAME TRACKING CLEARED for Camera $cameraIndex")
+        }
         
         connectedCameras.remove(camera)
         camera.closeCamera()
