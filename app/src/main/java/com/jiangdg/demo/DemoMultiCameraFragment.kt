@@ -379,21 +379,20 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         ToastUtils.show("CONNECTED: Camera $deviceName ready")
         ToastUtils.show("Unique ID: $deviceId Serial: $serialNumber VID:$vendorId PID:$productId")
         
-        // Check for duplicate cameras (same device connected twice)
+        // Check if this device is already established - this is the primary duplicate check
+        if (establishedDevices.contains(deviceId)) {
+            Log.d("DemoMultiCameraFragment", "🔄 DEVICE ALREADY ESTABLISHED - Device ID $deviceId already connected, ignoring duplicate")
+            return
+        }
+        
+        // Secondary check: Look for duplicate cameras in connected list (same device connected twice)
         val isDuplicate = connectedCameras.any { existingCamera ->
             val existingDevice = existingCamera.getUsbDevice()
-            val existingSerialNumber = try {
-                existingDevice.serialNumber ?: "unknown"
-            } catch (e: Exception) {
-                "error"
-            }
-            existingDevice.deviceId == deviceId && 
-            existingSerialNumber == serialNumber &&
-            existingDevice.vendorId == vendorId &&
-            existingDevice.productId == productId
+            existingDevice.deviceId == deviceId
         }
         
         if (isDuplicate) {
+            Log.w("DemoMultiCameraFragment", "⚠️ DUPLICATE DEVICE IN CONNECTED LIST - Device ID $deviceId found in connectedCameras, ignoring")
             ToastUtils.show("DUPLICATE: This camera is already connected - ignoring")
             // Remove from connecting devices since we're not proceeding
             connectingDevices.remove(deviceId)
@@ -482,24 +481,32 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
             ToastUtils.show("REQUEST: Camera-specific config created for camera $cameraIndex")
             
             // Ensure texture view is ready and check if fragment is still attached
-            if (isAdded && view != null) {
+            if (isAdded && view != null && !isDetached) {
                 correctTextureView.post {
                     try {
-                        // Double check fragment is still alive before opening camera
-                        if (isAdded && view != null) {
+                        // Triple check fragment is still alive and not detached before opening camera
+                        if (isAdded && view != null && !isDetached && activity != null) {
+                            Log.i("DemoMultiCameraFragment", "📹 OPENING CAMERA $cameraIndex")
+                            Log.i("DemoMultiCameraFragment", "TextureView ready: ${correctTextureView.isAvailable}")
+                            Log.i("DemoMultiCameraFragment", "Fragment state: added=$isAdded, detached=$isDetached")
+                            
                             camera.openCamera(correctTextureView, request)
                             ToastUtils.show("OPEN SUCCESS: Camera $cameraIndex opened - waiting for preview")
+                            
+                            Log.i("DemoMultiCameraFragment", "✅ CAMERA $cameraIndex OPENING INITIATED")
+                        } else {
+                            Log.w("DemoMultiCameraFragment", "❌ CAMERA $cameraIndex OPENING SKIPPED - Fragment not in valid state")
                         }
                     } catch (e: Exception) {
+                        Log.e("DemoMultiCameraFragment", "❌ CAMERA $cameraIndex OPENING FAILED: ${e.message}", e)
                         ToastUtils.show("OPEN FAILED: Camera $cameraIndex - ${e.message}")
-                        e.printStackTrace()
                     }
                 }
                 
                 // Add preview data callback AFTER camera is opened - use main handler safely
                 mainHandler.postDelayed({
                     // Check if fragment is still alive before adding callback
-                    if (isAdded && view != null && camera is CameraUVC) {
+                    if (isAdded && view != null && !isDetached && activity != null && camera is CameraUVC) {
                         camera.addPreviewDataCallBack(object : IPreviewDataCallBack {
                             override fun onPreviewData(
                                 data: ByteArray?,
@@ -525,8 +532,13 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                             }
                         })
                         ToastUtils.show("CALLBACK: Preview callback added for Camera $cameraIndex")
+                        Log.i("DemoMultiCameraFragment", "📹 PREVIEW CALLBACK ADDED for Camera $cameraIndex")
+                    } else {
+                        Log.w("DemoMultiCameraFragment", "❌ PREVIEW CALLBACK SKIPPED for Camera $cameraIndex - Fragment not in valid state")
                     }
                 }, 2000) // Wait 2 seconds after camera opens before adding callback
+            } else {
+                Log.w("DemoMultiCameraFragment", "❌ CAMERA $cameraIndex SETUP SKIPPED - Fragment not ready (added=$isAdded, view=${view != null}, detached=$isDetached)")
             }
             
         } catch (e: Exception) {
