@@ -5,28 +5,20 @@
     android:orientation="vertical"
     android:background="@color/black">
 
-    <!-- Main Camera Layout -->
-    <LinearLayout
+    <!-- Full Screen Camera Container - All cameras stacked for cycling -->
+    <FrameLayout
+        android:id="@+id/full_screen_camera_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="horizontal"
         android:background="@color/black">
 
-    <!-- Left Column -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical">
-
-        <!-- Camera 1 -->
+        <!-- Camera 1 - Full Screen -->
         <FrameLayout
+            android:id="@+id/camera_1_container"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@color/black">
+            android:layout_height="match_parent"
+            android:visibility="gone">
 
             <com.jiangdg.ausbc.widget.AspectRatioTextureView
                 android:id="@+id/texture_view_1"
@@ -52,54 +44,12 @@
 
         </FrameLayout>
 
-        <!-- Camera 3 -->
+        <!-- Camera 2 - Full Screen -->
         <FrameLayout
+            android:id="@+id/camera_2_container"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@color/black">
-
-            <com.jiangdg.ausbc.widget.AspectRatioTextureView
-                android:id="@+id/texture_view_3"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
-            <com.jiangdg.demo.OverlayView
-                android:id="@+id/overlay_view_3"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@android:color/transparent" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Camera 3"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:background="#80000000"
-                android:padding="6dp"
-                android:layout_gravity="top|start"
-                android:layout_margin="4dp" />
-
-        </FrameLayout>
-
-    </LinearLayout>
-
-    <!-- Right Column -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical">
-
-        <!-- Camera 2 -->
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@color/black">
+            android:layout_height="match_parent"
+            android:visibility="gone">
 
             <com.jiangdg.ausbc.widget.AspectRatioTextureView
                 android:id="@+id/texture_view_2"
@@ -125,13 +75,43 @@
 
         </FrameLayout>
 
-        <!-- Camera 4 -->
+        <!-- Camera 3 - Full Screen -->
         <FrameLayout
+            android:id="@+id/camera_3_container"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_margin="4dp"
-            android:background="@color/black">
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <com.jiangdg.ausbc.widget.AspectRatioTextureView
+                android:id="@+id/texture_view_3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <com.jiangdg.demo.OverlayView
+                android:id="@+id/overlay_view_3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Camera 3"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:background="#80000000"
+                android:padding="6dp"
+                android:layout_gravity="top|start"
+                android:layout_margin="4dp" />
+
+        </FrameLayout>
+
+        <!-- Camera 4 - Full Screen -->
+        <FrameLayout
+            android:id="@+id/camera_4_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
 
             <com.jiangdg.ausbc.widget.AspectRatioTextureView
                 android:id="@+id/texture_view_4"
@@ -157,38 +137,124 @@
 
         </FrameLayout>
 
-    </LinearLayout>
+        <!-- No Camera Active Indicator -->
+        <TextView
+            android:id="@+id/no_camera_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Select a camera below"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:background="#80000000"
+            android:padding="16dp"
+            android:layout_gravity="center"
+            android:visibility="visible" />
 
-    </LinearLayout>
+    </FrameLayout>
 
-    <!-- Camera Status Bar at Bottom -->
+    <!-- Camera Selection Control Bar at Bottom -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:background="#CC000000"
-        android:padding="12dp"
-        android:gravity="center_vertical">
+        android:padding="12dp">
 
-        <TextView
-            android:id="@+id/camera_count_text"
-            android:layout_width="0dp"
+        <!-- Top Row: Camera Count and Active Camera -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Cameras Connected: 0/4"
-            android:textColor="@color/white"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:gravity="start" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/camera_count_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="� Manual Mode: 0/4 cameras"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:gravity="start" />
+
+            <TextView
+                android:id="@+id/active_camera_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📹 Active: None"
+                android:textColor="#4CAF50"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginStart="16dp" />
+
+        </LinearLayout>
+
+        <!-- Camera Selection Buttons Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/camera_1_button"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="CAM 1"
+                android:textSize="14sp"
+                android:textColor="@color/white"
+                android:background="#555555"
+                android:layout_marginEnd="4dp"
+                android:enabled="false" />
+
+            <Button
+                android:id="@+id/camera_2_button"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="CAM 2"
+                android:textSize="14sp"
+                android:textColor="@color/white"
+                android:background="#555555"
+                android:layout_marginEnd="4dp"
+                android:enabled="false" />
+
+            <Button
+                android:id="@+id/camera_3_button"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="CAM 3"
+                android:textSize="14sp"
+                android:textColor="@color/white"
+                android:background="#555555"
+                android:layout_marginEnd="4dp"
+                android:enabled="false" />
+
+            <Button
+                android:id="@+id/camera_4_button"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="CAM 4"
+                android:textSize="14sp"
+                android:textColor="@color/white"
+                android:background="#555555"
+                android:enabled="false" />
+
+        </LinearLayout>
 
         <TextView
             android:id="@+id/permission_status_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Ready"
+            android:text=""
             android:textColor="#4CAF50"
-            android:textSize="14sp"
-            android:layout_marginStart="16dp" />
+            android:textSize="12sp"
+            android:visibility="gone" />
 
     </LinearLayout>
 
