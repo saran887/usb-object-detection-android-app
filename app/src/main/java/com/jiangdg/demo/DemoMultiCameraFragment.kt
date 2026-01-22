@@ -776,8 +776,29 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 textureView.post {
                     try {
                         if (isAdded && view != null && !isDetached && activity != null) {
-                            camera.openCamera(textureView, request)
-                            Log.i("DemoMultiCameraFragment", "✅ CAMERA $cameraIndex OPENED for cycling")
+                            // Wait for SurfaceTexture to be available
+                            if (textureView.isAvailable) {
+                                camera.openCamera(textureView, request)
+                                Log.i("DemoMultiCameraFragment", "✅ CAMERA $cameraIndex OPENED for cycling")
+                            } else {
+                                // Set a listener to open when ready
+                                textureView.surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                                    override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
+                                        try {
+                                            if (isAdded && view != null) {
+                                                camera.openCamera(textureView, request)
+                                                Log.i("DemoMultiCameraFragment", "✅ CAMERA $cameraIndex OPENED (delayed - texture ready)")
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("DemoMultiCameraFragment", "❌ Error opening camera on texture ready: ${e.message}")
+                                        }
+                                    }
+                                    override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {}
+                                    override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean = true
+                                    override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {}
+                                }
+                                Log.w("DemoMultiCameraFragment", "⏳ Waiting for Camera $cameraIndex texture to become available")
+                            }
                         }
                     } catch (e: Exception) {
                         Log.e("DemoMultiCameraFragment", "❌ CAMERA $cameraIndex OPENING FAILED: ${e.message}", e)
@@ -1335,7 +1356,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 Log.i("DemoMultiCameraFragment", "🔄 CLOSING Camera $cameraIndex for restart")
                 
                 // Close camera but DON'T remove from connected list - we want to keep the slot
-                camera.closeCamera()
+                try {
+                    camera.closeCamera()
+                } catch (e: Exception) {
+                    Log.w("DemoMultiCameraFragment", "⚠️ Error closing camera for restart: ${e.message}")
+                }
                 
                 mainHandler.postDelayed({
                     if (isAdded && view != null) {
@@ -1550,6 +1575,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
             // Temporarily stop cycling and show selected camera
             stopCameraCycling()
             selectCamera(1)
+            android.widget.Toast.makeText(requireContext(), "📹 Camera 1 - Manual Mode", android.widget.Toast.LENGTH_SHORT).show()
             // Resume cycling after 10 seconds (with comprehensive safety checks)
             mainHandler.postDelayed({
                 try {
@@ -1571,6 +1597,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         camera2Button.setOnClickListener {
             stopCameraCycling()
             selectCamera(2)
+            android.widget.Toast.makeText(requireContext(), "📹 Camera 2 - Manual Mode", android.widget.Toast.LENGTH_SHORT).show()
             mainHandler.postDelayed({
                 try {
                     if (isAdded && view != null && !isDetached && !isRemoving && cameraCyclingEnabled) {
@@ -1591,6 +1618,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         camera3Button.setOnClickListener {
             stopCameraCycling()
             selectCamera(3)
+            android.widget.Toast.makeText(requireContext(), "📹 Camera 3 - Manual Mode", android.widget.Toast.LENGTH_SHORT).show()
             mainHandler.postDelayed({
                 try {
                     if (isAdded && view != null && !isDetached && !isRemoving && cameraCyclingEnabled) {
@@ -1611,6 +1639,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         camera4Button.setOnClickListener {
             stopCameraCycling()
             selectCamera(4)
+            android.widget.Toast.makeText(requireContext(), "📹 Camera 4 - Manual Mode", android.widget.Toast.LENGTH_SHORT).show()
             mainHandler.postDelayed({
                 try {
                     if (isAdded && view != null && !isDetached && !isRemoving && cameraCyclingEnabled) {
@@ -1626,6 +1655,34 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                     Log.e("DemoMultiCameraFragment", "❌ Error auto-resuming cycling: ${e.message}")
                 }
             }, 10000)
+        }
+        
+        // AUTO button - toggle automatic cycling
+        mViewBinding.root.findViewById<android.widget.Button>(R.id.auto_switch_button)?.setOnClickListener {
+            if (cameraCyclingEnabled) {
+                // Currently auto - disable it
+                stopCameraCycling()
+                cameraCyclingEnabled = false
+                android.widget.Toast.makeText(requireContext(), "🔄 Auto-Switch: OFF", android.widget.Toast.LENGTH_SHORT).show()
+                Log.i("DemoMultiCameraFragment", "🔄 Auto-switching disabled by user")
+            } else {
+                // Currently manual - enable auto
+                cameraCyclingEnabled = true
+                val workingCameras = activeCameras.filter { !isDeviceBlacklisted(it) }
+                if (workingCameras.size >= 2) {
+                    startCameraCycling()
+                    android.widget.Toast.makeText(requireContext(), "🔄 Auto-Switch: ON (5s intervals)", android.widget.Toast.LENGTH_SHORT).show()
+                    Log.i("DemoMultiCameraFragment", "🔄 Auto-switching enabled with ${workingCameras.size} cameras")
+                } else {
+                    android.widget.Toast.makeText(requireContext(), "⚠️ Need 2+ cameras for auto-switch", android.widget.Toast.LENGTH_SHORT).show()
+                    Log.w("DemoMultiCameraFragment", "⚠️ Not enough cameras for cycling: ${workingCameras.size}")
+                }
+            }
+        }
+        
+        // VIEW LOGS button - show recent logs
+        mViewBinding.root.findViewById<android.widget.Button>(R.id.view_logs_button)?.setOnClickListener {
+            showLogDialog()
         }
         
         Log.i("DemoMultiCameraFragment", "📱 Camera selection buttons initialized - Auto-cycling every 5s")
@@ -1882,30 +1939,56 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     }
 
     private var lastProcessTime = mutableMapOf<Int, Long>()
+    private var frameSkipCounter = mutableMapOf<Int, Int>()
     
     private fun processFrame(data: ByteArray, width: Int, height: Int, cameraIndex: Int) {
         // Skip frame processing if executor is busy to prevent blocking
         if (executor.isShutdown || executor.isTerminated) return
         
-        // Aggressive throttle for multi-camera mode to conserve bandwidth
+        // Check memory pressure - skip frames if memory is low
+        val runtime = Runtime.getRuntime()
+        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+        val maxMemory = runtime.maxMemory()
+        val memoryUsagePercent = (usedMemory * 100) / maxMemory
+        
+        if (memoryUsagePercent > 85) {
+            // High memory pressure - skip this frame
+            val skipCount = frameSkipCounter.getOrDefault(cameraIndex, 0) + 1
+            frameSkipCounter[cameraIndex] = skipCount
+            if (skipCount % 10 == 0) {
+                Log.w("DemoMultiCameraFragment", "⚠️ Memory pressure: ${memoryUsagePercent}% - Skipped $skipCount frames on Camera $cameraIndex")
+            }
+            return
+        }
+        
+        // Aggressive throttle for multi-camera mode to conserve bandwidth and CPU
         val currentTime = System.currentTimeMillis()
         val lastTime = lastProcessTime[cameraIndex] ?: 0
         
-        // In cycling mode, only one camera is active at a time - no bandwidth conflicts!
-        val throttleInterval = if (cameraCyclingEnabled) {
-            // Much higher frame rate possible since only one camera is running
-            33L  // ~30 FPS - full bandwidth available for single active camera
-        } else {
-            // Fallback to conservative throttling for non-cycling mode
-            val isMultiCameraActive = connectedCameras.size > 1
-            when {
-                isMultiCameraActive -> 500L  // 2 FPS for multi-camera
-                else -> 100L  // 10 FPS for single camera
+        // Calculate throttle based on number of connected cameras
+        val connectedCount = connectedCameras.size
+        val throttleInterval = when {
+            cameraCyclingEnabled -> {
+                // Cycling mode: only one camera active at a time
+                100L  // ~10 FPS - balanced for single active camera
+            }
+            connectedCount >= 3 -> {
+                // 3-4 cameras: very conservative to prevent crashes
+                1000L  // 1 FPS per camera = 4 FPS total
+            }
+            connectedCount == 2 -> {
+                // 2 cameras: moderate throttling
+                500L  // 2 FPS per camera = 4 FPS total
+            }
+            else -> {
+                // Single camera: higher frame rate
+                200L  // ~5 FPS
             }
         }
         
         if (currentTime - lastTime < throttleInterval) return // Skip frames based on mode
         lastProcessTime[cameraIndex] = currentTime
+        frameSkipCounter[cameraIndex] = 0  // Reset skip counter when frame is processed
         
         executor.execute {
             try {
@@ -1944,7 +2027,10 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                         if (cameraIndex == currentActiveCameraIndex && results.isNotEmpty()) {
                             val label = results[0].label
                             val confidence = results[0].confidence
-                            ttsHelper.speak(label, confidence)
+                            // Calculate normalized Y position (center of bounding box) for position context
+                            val yCenter = (results[0].boundingBox.top + results[0].boundingBox.bottom) / 2f
+                            val normalizedY = yCenter / 320f  // Model input size is 320x320
+                            ttsHelper.speak(label, confidence, normalizedY)
                         }
                     } catch (e: Exception) {
                         // Silently continue if UI update fails
@@ -1964,7 +2050,27 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         val out = java.io.ByteArrayOutputStream()
         yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 90, out)
         val yuv = out.toByteArray()
-        return android.graphics.BitmapFactory.decodeByteArray(yuv, 0, yuv.size)
+        val bitmap = android.graphics.BitmapFactory.decodeByteArray(yuv, 0, yuv.size)
+        
+        // Reduce resolution when multiple cameras are connected to save memory
+        val connectedCount = connectedCameras.size
+        return when {
+            connectedCount >= 3 -> {
+                // 3-4 cameras: scale down to 25% (0.5x width & height) = 4x less memory
+                Log.d("DemoMultiCameraFragment", "🔽 Scaling bitmap to 25% for $connectedCount cameras")
+                Bitmap.createScaledBitmap(bitmap, width / 2, height / 2, true).also {
+                    if (it != bitmap) bitmap.recycle()
+                }
+            }
+            connectedCount == 2 -> {
+                // 2 cameras: scale down to 50% (0.7x width & height) = 2x less memory
+                Log.d("DemoMultiCameraFragment", "🔽 Scaling bitmap to 50% for 2 cameras")
+                Bitmap.createScaledBitmap(bitmap, (width * 0.7).toInt(), (height * 0.7).toInt(), true).also {
+                    if (it != bitmap) bitmap.recycle()
+                }
+            }
+            else -> bitmap  // 1 camera: full resolution
+        }
     }
 
     override fun onCameraState(
@@ -2465,7 +2571,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
             try {
                 // Step 1: Close camera completely
                 Log.i("DemoMultiCameraFragment", "🔄 STEP 1: Closing camera for USB reset")
-                camera.closeCamera()
+                try {
+                    camera.closeCamera()
+                } catch (e: Exception) {
+                    Log.w("DemoMultiCameraFragment", "⚠️ Error closing camera during USB reset: ${e.message}")
+                }
                 
                 // Step 2: Wait longer for USB interface to reset
                 mainHandler.postDelayed({
@@ -2543,7 +2653,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 deviceRestartAttempts[deviceId] = deviceRestartAttempts.getOrDefault(deviceId, 0) + 1
                 
                 // Close current camera
-                camera.closeCamera()
+                try {
+                    camera.closeCamera()
+                } catch (e: Exception) {
+                    Log.w("DemoMultiCameraFragment", "⚠️ Error closing camera for manual restart: ${e.message}")
+                }
                 
                 // Wait then reopen with specific configuration
                 mainHandler.postDelayed({
@@ -2826,7 +2940,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         }
         
         connectedCameras.remove(camera)
-        camera.closeCamera()
+        try {
+            camera.closeCamera()
+        } catch (e: Exception) {
+            Log.w("DemoMultiCameraFragment", "⚠️ Error closing disconnected camera: ${e.message}")
+        }
         
         // Clear camera reference
         when (camera) {
@@ -2858,5 +2976,80 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
 
     protected override fun onCameraDetached(camera: MultiCameraClient.ICamera) {
         // ToastUtils.show("Camera detached: ${camera.getUsbDevice() // Removed for clean UI.deviceName}")
+    }
+    
+    private fun showLogDialog() {
+        try {
+            // Get recent logs from logcat with strict filtering
+            val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-t", "50", "-s", "DemoMultiCameraFragment:D", "ObjectDetectorHelper:D"))
+            val bufferedReader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
+            val logs = StringBuilder()
+            
+            // Additional filtering to only show safe information
+            var line: String?
+            while (bufferedReader.readLine().also { line = it } != null) {
+                val safeLine = line ?: continue
+                
+                // Exclude sensitive information patterns
+                if (safeLine.contains("password", ignoreCase = true) ||
+                    safeLine.contains("token", ignoreCase = true) ||
+                    safeLine.contains("key", ignoreCase = true) ||
+                    safeLine.contains("secret", ignoreCase = true) ||
+                    safeLine.contains("Exception", ignoreCase = true) ||
+                    safeLine.contains("Error", ignoreCase = true)) {
+                    continue  // Skip potentially sensitive logs
+                }
+                
+                // Only include logs that contain safe camera/detection info
+                if (safeLine.contains("Camera") || 
+                    safeLine.contains("Detected") ||
+                    safeLine.contains("FPS") ||
+                    safeLine.contains("Connected cameras") ||
+                    safeLine.contains("Resolution") ||
+                    safeLine.contains("OPENED SUCCESSFULLY")) {
+                    
+                    // Sanitize the line - remove package names and paths
+                    val sanitizedLine = safeLine
+                        .replace(Regex("D/DemoMultiCameraFragment: "), "")
+                        .replace(Regex("D/ObjectDetectorHelper: "), "")
+                        .replace(Regex("\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}"), "")
+                        .trim()
+                    
+                    if (sanitizedLine.isNotEmpty()) {
+                        logs.append("• ").append(sanitizedLine).append("\n")
+                    }
+                }
+            }
+            
+            // Create a dialog to show logs
+            val builder = android.app.AlertDialog.Builder(requireContext())
+            builder.setTitle("📋 Camera & Detection Status")
+            
+            // Create a scrollable TextView
+            val textView = android.widget.TextView(requireContext())
+            textView.text = if (logs.isEmpty()) {
+                "No camera activity logs found.\n\nConnect cameras to see detection results."
+            } else {
+                "Recent Camera Activity:\n\n$logs"
+            }
+            textView.setTextIsSelectable(true)
+            textView.setPadding(16, 16, 16, 16)
+            textView.textSize = 12f
+            
+            val scrollView = android.widget.ScrollView(requireContext())
+            scrollView.addView(textView)
+            
+            builder.setView(scrollView)
+            builder.setPositiveButton("Refresh") { _, _ ->
+                showLogDialog()  // Reopen with fresh logs
+            }
+            builder.setNegativeButton("Close", null)
+            builder.show()
+            
+            Log.i("DemoMultiCameraFragment", "📋 Log viewer opened - Showing safe camera logs")
+        } catch (e: Exception) {
+            Log.e("DemoMultiCameraFragment", "❌ Error reading logs: ${e.message}")
+            android.widget.Toast.makeText(requireContext(), "⚠️ Cannot read logs", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 }

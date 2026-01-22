@@ -29,22 +29,15 @@
         android:theme="@style/Theme.ClinkCameraDemo"
         android:requestLegacyExternalStorage="true"
         android:supportsRtl="true">
-        <activity
-            android:name="com.jiangdg.demo.SplashActivity"
-            android:exported="true"
-            android:theme="@style/SplashActivityStyle"
-            android:screenOrientation="landscape">
+        <activity android:name="com.jiangdg.demo.MainActivity"
+            android:theme="@style/Theme.ClinkCameraDemo.NoActionBar"
+            android:screenOrientation="landscape"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-
-        <activity android:name="com.jiangdg.demo.MainActivity"
-            android:theme="@style/Theme.ClinkCameraDemo.NoActionBar"
-            android:screenOrientation="landscape"
-            android:exported="true">
             
             <!-- USB device intent filters -->
             <intent-filter>

@@ -32,7 +32,7 @@ ext {
     versionTarget = 31
     minSdkVersion = 21
     versionBuildTool = '33.0.1'
-    versionCode = 1
+    versionCode = 127
     versionNameString = '1.0'
     javaSourceCompatibility = JavaVersion.VERSION_1_8
     javaTargetCompatibility = JavaVersion.VERSION_1_8

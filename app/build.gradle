@@ -40,6 +40,10 @@ android {
         viewBinding true
     }
 
+    aaptOptions {
+        noCompress "tflite"
+    }
+
     ndkVersion rootProject.ext.ndkVersion
 
     lint {
