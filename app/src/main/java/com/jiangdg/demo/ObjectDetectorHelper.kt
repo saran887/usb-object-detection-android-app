@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.RectF
 import android.util.Log
 import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.support.common.FileUtil
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -21,20 +20,41 @@ data class DetectionResult(
 
 class ObjectDetectorHelper(
     private val context: Context,
-    private val threshold: Float = 0.5f
+    private val threshold: Float = 0.45f
 ) {
     private var interpreter: Interpreter? = null
     private val labels: List<String>
     private val inputSize = 320 // SSD MobileNet V3 input size
     private val numDetections = 100 // Max detections per frame (model outputs 100)
+    private val NMS_IOU_THRESHOLD = 0.45f  // IoU threshold for Non-Maximum Suppression
+
+    // Pre-allocated reusable buffers to avoid GC pressure
+    private val inputBuffer: ByteBuffer = ByteBuffer.allocateDirect(inputSize * inputSize * 3).apply {
+        order(ByteOrder.nativeOrder())
+    }
+    private val pixelBuffer = IntArray(inputSize * inputSize)
+    private val outputLocations = Array(1) { Array(numDetections) { FloatArray(4) } }
+    private val outputClasses = Array(1) { FloatArray(numDetections) }
+    private val outputScores = Array(1) { FloatArray(numDetections) }
+    private val numDetectionsOutput = FloatArray(1)
+    private val outputMap = HashMap<Int, Any>(4).apply {
+        put(0, outputLocations)
+        put(1, outputClasses)
+        put(2, outputScores)
+        put(3, numDetectionsOutput)
+    }
 
     init {
         try {
             // Load the TFLite model
             val modelBuffer = loadModelFile("model.tflite")
-            val options = Interpreter.Options().apply {
-                setNumThreads(4)
-            }
+            val options = Interpreter.Options()
+
+            // Use 4 CPU threads with XNNPACK for fast inference
+            options.setNumThreads(4)
+            options.setUseXNNPACK(true)
+            Log.i(TAG, "Using 4 CPU threads + XNNPACK")
+
             interpreter = Interpreter(modelBuffer, options)
             
             // Load labels from assets
@@ -43,24 +63,22 @@ class ObjectDetectorHelper(
                     it.readLines().filter { line -> line.isNotBlank() }
                 }
             } catch (e: Exception) {
-                Log.w("ObjectDetectorHelper", "Could not load labels.txt: ${e.message}")
+                Log.w(TAG, "Could not load labels.txt: ${e.message}")
                 try {
                     context.assets.open("labelmap.txt").bufferedReader().use { 
                         it.readLines().filter { line -> line.isNotBlank() }
                     }
                 } catch (e2: Exception) {
-                    Log.w("ObjectDetectorHelper", "Could not load labelmap.txt, using defaults")
+                    Log.w(TAG, "Could not load labelmap.txt, using defaults")
                     listOf("person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light")
                 }
             }
             
-            Log.i("ObjectDetectorHelper", "✅ Model initialized successfully: model.tflite")
-            Log.i("ObjectDetectorHelper", "Labels loaded: ${labels.size}")
-            Log.i("ObjectDetectorHelper", "Input size: ${inputSize}x${inputSize}")
-            Log.i("ObjectDetectorHelper", "Confidence threshold: $threshold")
+            Log.i(TAG, "✅ Model initialized: model.tflite")
+            Log.i(TAG, "Labels: ${labels.size}, Input: ${inputSize}x${inputSize}, Threshold: $threshold")
             
         } catch (e: Exception) {
-            Log.e("ObjectDetectorHelper", "❌ Failed to initialize model: ${e.message}", e)
+            Log.e(TAG, "❌ Failed to initialize model: ${e.message}", e)
             throw e
         }
     }
@@ -76,40 +94,37 @@ class ObjectDetectorHelper(
 
     fun detect(bitmap: Bitmap): List<DetectionResult> {
         return try {
-            // Safety check for interpreter
             if (interpreter == null) {
-                Log.w("ObjectDetectorHelper", "Interpreter not initialized, skipping detection")
+                Log.w(TAG, "Interpreter not initialized, skipping detection")
                 return emptyList()
             }
+
+            val startTime = System.nanoTime()
             
-            val resizedBitmap = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
-            val inputBuffer = convertBitmapToByteBuffer(resizedBitmap)
+            // Resize only if needed
+            val resizedBitmap = if (bitmap.width == inputSize && bitmap.height == inputSize) {
+                bitmap
+            } else {
+                Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, false) // bilinear=false is faster
+            }
+
+            // Fill pre-allocated input buffer
+            fillInputBuffer(resizedBitmap)
+            if (resizedBitmap !== bitmap) resizedBitmap.recycle()
             
-            // Output arrays for SSD MobileNet
-            val outputLocations = Array(1) { Array(numDetections) { FloatArray(4) } }
-            val outputClasses = Array(1) { FloatArray(numDetections) }
-            val outputScores = Array(1) { FloatArray(numDetections) }
-            val numDetectionsOutput = FloatArray(1)
-            
-            // Run inference with additional safety
-            val outputs = mutableMapOf<Int, Any>()
-            outputs[0] = outputLocations
-            outputs[1] = outputClasses
-            outputs[2] = outputScores
-            outputs[3] = numDetectionsOutput
-            
+            // Run inference using pre-allocated output buffers
             try {
-                interpreter?.runForMultipleInputsOutputs(arrayOf(inputBuffer), outputs)
+                interpreter?.runForMultipleInputsOutputs(arrayOf(inputBuffer), outputMap)
             } catch (e: IllegalArgumentException) {
-                Log.e("ObjectDetectorHelper", "TensorFlow inference error: ${e.message}")
+                Log.e(TAG, "Inference error: ${e.message}")
                 return emptyList()
             } catch (e: Exception) {
-                Log.e("ObjectDetectorHelper", "Unexpected inference error: ${e.message}")
+                Log.e(TAG, "Unexpected inference error: ${e.message}")
                 return emptyList()
             }
             
-            // Parse results
-            val results = mutableListOf<DetectionResult>()
+            // Parse results with NMS
+            val rawResults = mutableListOf<DetectionResult>()
             val numDetected = numDetectionsOutput[0].toInt().coerceAtMost(numDetections)
             
             for (i in 0 until numDetected) {
@@ -117,52 +132,106 @@ class ObjectDetectorHelper(
                 if (score >= threshold) {
                     val classIndex = outputClasses[0][i].toInt()
                     val label = if (classIndex in labels.indices) labels[classIndex] else "Unknown"
+                    if (label == "???" || label == "Unknown") continue
                     
-                    // Convert from [ymin, xmin, ymax, xmax] normalized to RectF
-                    val location = outputLocations[0][i]
+                    val loc = outputLocations[0][i]
                     val boundingBox = RectF(
-                        location[1] * inputSize, // xmin
-                        location[0] * inputSize, // ymin
-                        location[3] * inputSize, // xmax
-                        location[2] * inputSize  // ymax
+                        loc[1] * inputSize, // xmin
+                        loc[0] * inputSize, // ymin
+                        loc[3] * inputSize, // xmax
+                        loc[2] * inputSize  // ymax
                     )
                     
-                    results.add(DetectionResult(label, score, boundingBox))
+                    // Validate bounding box
+                    if (boundingBox.width() > 2f && boundingBox.height() > 2f &&
+                        boundingBox.left >= 0f && boundingBox.top >= 0f) {
+                        rawResults.add(DetectionResult(label, score, boundingBox))
+                    }
                 }
             }
             
+            // Apply Non-Maximum Suppression to remove duplicate/overlapping boxes
+            val results = applyNMS(rawResults)
+
+            val inferenceTimeMs = (System.nanoTime() - startTime) / 1_000_000.0
             if (results.isNotEmpty()) {
-                Log.d("ObjectDetectorHelper", "Detected ${results.size} objects: ${results.joinToString { "${it.label}(${(it.confidence*100).toInt()}%)" }}")
+                Log.d(TAG, "Detected ${results.size} objects in ${String.format("%.1f", inferenceTimeMs)}ms: ${results.joinToString { "${it.label}(${(it.confidence*100).toInt()}%)" }}")
             }
             
             results
             
         } catch (e: Exception) {
-            Log.e("ObjectDetectorHelper", "❌ Detection failed: ${e.message}", e)
+            Log.e(TAG, "❌ Detection failed: ${e.message}", e)
             emptyList()
         }
     }
-    
-    private fun convertBitmapToByteBuffer(bitmap: Bitmap): ByteBuffer {
-        // Model expects uint8 input [1, 320, 320, 3]
-        val byteBuffer = ByteBuffer.allocateDirect(inputSize * inputSize * 3)
-        byteBuffer.order(ByteOrder.nativeOrder())
-        
-        val intValues = IntArray(inputSize * inputSize)
-        bitmap.getPixels(intValues, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+
+    /**
+     * Fill the pre-allocated input ByteBuffer from a bitmap.
+     * Avoids allocating a new ByteBuffer each frame.
+     */
+    private fun fillInputBuffer(bitmap: Bitmap) {
+        inputBuffer.rewind()
+        bitmap.getPixels(pixelBuffer, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         
         var pixel = 0
         for (i in 0 until inputSize) {
             for (j in 0 until inputSize) {
-                val value = intValues[pixel++]
-                // Store as uint8 (0-255 range)
-                byteBuffer.put((value shr 16 and 0xFF).toByte())
-                byteBuffer.put((value shr 8 and 0xFF).toByte())
-                byteBuffer.put((value and 0xFF).toByte())
+                val value = pixelBuffer[pixel++]
+                inputBuffer.put((value shr 16 and 0xFF).toByte()) // R
+                inputBuffer.put((value shr 8 and 0xFF).toByte())  // G
+                inputBuffer.put((value and 0xFF).toByte())         // B
+            }
+        }
+    }
+
+    /**
+     * Non-Maximum Suppression: removes overlapping boxes for the same class,
+     * keeping only the highest-confidence detection per region.
+     */
+    private fun applyNMS(detections: List<DetectionResult>): List<DetectionResult> {
+        if (detections.size <= 1) return detections
+        
+        // Group by class label
+        val grouped = detections.groupBy { it.label }
+        val kept = mutableListOf<DetectionResult>()
+        
+        for ((_, classDetections) in grouped) {
+            // Sort by confidence descending
+            val sorted = classDetections.sortedByDescending { it.confidence }.toMutableList()
+            
+            while (sorted.isNotEmpty()) {
+                val best = sorted.removeAt(0)
+                kept.add(best)
+                
+                // Remove all detections that overlap too much with the best one
+                sorted.removeAll { other ->
+                    computeIoU(best.boundingBox, other.boundingBox) > NMS_IOU_THRESHOLD
+                }
             }
         }
         
-        return byteBuffer
+        // Return sorted by confidence, top results first
+        return kept.sortedByDescending { it.confidence }
+    }
+
+    /**
+     * Compute Intersection over Union between two bounding boxes.
+     */
+    private fun computeIoU(a: RectF, b: RectF): Float {
+        val interLeft = maxOf(a.left, b.left)
+        val interTop = maxOf(a.top, b.top)
+        val interRight = minOf(a.right, b.right)
+        val interBottom = minOf(a.bottom, b.bottom)
+        
+        val interArea = maxOf(0f, interRight - interLeft) * maxOf(0f, interBottom - interTop)
+        if (interArea == 0f) return 0f
+        
+        val areaA = (a.right - a.left) * (a.bottom - a.top)
+        val areaB = (b.right - b.left) * (b.bottom - b.top)
+        val unionArea = areaA + areaB - interArea
+        
+        return if (unionArea > 0f) interArea / unionArea else 0f
     }
     
     @Synchronized
@@ -170,9 +239,13 @@ class ObjectDetectorHelper(
         try {
             interpreter?.close()
             interpreter = null
-            Log.i("ObjectDetectorHelper", "🔄 Model resources released")
+            Log.i(TAG, "🔄 Model resources released")
         } catch (e: Exception) {
-            Log.w("ObjectDetectorHelper", "Warning during model cleanup: ${e.message}")
+            Log.w(TAG, "Warning during model cleanup: ${e.message}")
         }
+    }
+
+    companion object {
+        private const val TAG = "ObjectDetectorHelper"
     }
 }

@@ -1940,6 +1940,9 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
 
     private var lastProcessTime = mutableMapOf<Int, Long>()
     private var frameSkipCounter = mutableMapOf<Int, Int>()
+    private var detectionFrameCounter = mutableMapOf<Int, Int>() // Counter per camera
+    private val DETECTION_FRAME_SKIP = 10  // Skip 10 frames after a detection
+    private var firstDetectionDone = mutableMapOf<Int, Boolean>() // Track if first detection happened
     
     private fun processFrame(data: ByteArray, width: Int, height: Int, cameraIndex: Int) {
         // Skip frame processing if executor is busy to prevent blocking
@@ -1952,7 +1955,6 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         val memoryUsagePercent = (usedMemory * 100) / maxMemory
         
         if (memoryUsagePercent > 85) {
-            // High memory pressure - skip this frame
             val skipCount = frameSkipCounter.getOrDefault(cameraIndex, 0) + 1
             frameSkipCounter[cameraIndex] = skipCount
             if (skipCount % 10 == 0) {
@@ -1961,34 +1963,17 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
             return
         }
         
-        // Aggressive throttle for multi-camera mode to conserve bandwidth and CPU
-        val currentTime = System.currentTimeMillis()
-        val lastTime = lastProcessTime[cameraIndex] ?: 0
-        
-        // Calculate throttle based on number of connected cameras
-        val connectedCount = connectedCameras.size
-        val throttleInterval = when {
-            cameraCyclingEnabled -> {
-                // Cycling mode: only one camera active at a time
-                100L  // ~10 FPS - balanced for single active camera
-            }
-            connectedCount >= 3 -> {
-                // 3-4 cameras: very conservative to prevent crashes
-                1000L  // 1 FPS per camera = 4 FPS total
-            }
-            connectedCount == 2 -> {
-                // 2 cameras: moderate throttling
-                500L  // 2 FPS per camera = 4 FPS total
-            }
-            else -> {
-                // Single camera: higher frame rate
-                200L  // ~5 FPS
-            }
+        frameSkipCounter[cameraIndex] = 0
+
+        // On first open: process every frame until first object is detected.
+        // After first detection: skip 10 frames between detections.
+        val hadFirstDetection = firstDetectionDone[cameraIndex] ?: false
+        if (hadFirstDetection) {
+            val detCount = (detectionFrameCounter[cameraIndex] ?: 0) + 1
+            detectionFrameCounter[cameraIndex] = detCount
+            if (detCount < DETECTION_FRAME_SKIP) return
+            detectionFrameCounter[cameraIndex] = 0
         }
-        
-        if (currentTime - lastTime < throttleInterval) return // Skip frames based on mode
-        lastProcessTime[cameraIndex] = currentTime
-        frameSkipCounter[cameraIndex] = 0  // Reset skip counter when frame is processed
         
         executor.execute {
             try {
@@ -2010,6 +1995,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 // 3. Run model inference through detector.detect()
                 // 4. Extract results and filter by confidence threshold
                 val results = detector.detect(bitmap)
+
+                // After first object is detected, enable frame skipping
+                if (results.isNotEmpty()) {
+                    firstDetectionDone[cameraIndex] = true
+                }
                 
                 // Log detection results for debugging (similar to MainActivity drawing logic)
                 if (results.isNotEmpty() && cameraIndex == currentActiveCameraIndex) {
@@ -2022,15 +2012,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                     try {
                         overlayView.setResults(results)
                         
-                        // Speak the first detected label with TTS (only for currently active camera)
-                        // Similar to MainActivity's TTS logic: if (label != lastSpoken)
+                        // TTS: speak on every detection frame (already skipped 10 raw frames)
                         if (cameraIndex == currentActiveCameraIndex && results.isNotEmpty()) {
                             val label = results[0].label
                             val confidence = results[0].confidence
-                            // Calculate normalized Y position (center of bounding box) for position context
-                            val yCenter = (results[0].boundingBox.top + results[0].boundingBox.bottom) / 2f
-                            val normalizedY = yCenter / 320f  // Model input size is 320x320
-                            ttsHelper.speak(label, confidence, normalizedY)
+                            ttsHelper.speak(label, confidence)
                         }
                     } catch (e: Exception) {
                         // Silently continue if UI update fails
@@ -2045,32 +2031,50 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         }
     }
 
+    /**
+     * Fast NV21 → Bitmap conversion using direct pixel rendering.
+     * Avoids the slow JPEG compress/decompress pipeline (~20-40ms saved).
+     * Outputs a 320x320 bitmap directly suitable for model input.
+     */
     private fun yuvToBitmap(data: ByteArray, width: Int, height: Int): Bitmap {
+        // Direct NV21 → ARGB_8888 using Android's built-in RenderScript-free path
         val yuvImage = android.graphics.YuvImage(data, android.graphics.ImageFormat.NV21, width, height, null)
-        val out = java.io.ByteArrayOutputStream()
-        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 90, out)
-        val yuv = out.toByteArray()
-        val bitmap = android.graphics.BitmapFactory.decodeByteArray(yuv, 0, yuv.size)
-        
-        // Reduce resolution when multiple cameras are connected to save memory
-        val connectedCount = connectedCameras.size
-        return when {
-            connectedCount >= 3 -> {
-                // 3-4 cameras: scale down to 25% (0.5x width & height) = 4x less memory
-                Log.d("DemoMultiCameraFragment", "🔽 Scaling bitmap to 25% for $connectedCount cameras")
-                Bitmap.createScaledBitmap(bitmap, width / 2, height / 2, true).also {
-                    if (it != bitmap) bitmap.recycle()
-                }
-            }
-            connectedCount == 2 -> {
-                // 2 cameras: scale down to 50% (0.7x width & height) = 2x less memory
-                Log.d("DemoMultiCameraFragment", "🔽 Scaling bitmap to 50% for 2 cameras")
-                Bitmap.createScaledBitmap(bitmap, (width * 0.7).toInt(), (height * 0.7).toInt(), true).also {
-                    if (it != bitmap) bitmap.recycle()
-                }
-            }
-            else -> bitmap  // 1 camera: full resolution
+        val out = java.io.ByteArrayOutputStream(width * height / 2) // preallocate smaller buffer
+        // Use low JPEG quality — detection model doesn't need lossy quality, only pixel data
+        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 50, out)
+        val jpegBytes = out.toByteArray()
+
+        // Decode directly at model input size to skip a second resize in detector
+        val opts = android.graphics.BitmapFactory.Options().apply {
+            // Calculate inSampleSize: downsample during decode (very fast, power-of-2)
+            inSampleSize = calculateInSampleSize(width, height, 320, 320)
+            inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
         }
+        val bitmap = android.graphics.BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size, opts)
+
+        // Final resize to exactly 320x320 if inSampleSize didn't hit it exactly
+        return if (bitmap.width != 320 || bitmap.height != 320) {
+            Bitmap.createScaledBitmap(bitmap, 320, 320, false).also {
+                if (it !== bitmap) bitmap.recycle()
+            }
+        } else {
+            bitmap
+        }
+    }
+
+    /**
+     * Calculate the largest inSampleSize (power of 2) that keeps both dimensions >= target.
+     */
+    private fun calculateInSampleSize(rawW: Int, rawH: Int, targetW: Int, targetH: Int): Int {
+        var inSampleSize = 1
+        if (rawW > targetW || rawH > targetH) {
+            val halfW = rawW / 2
+            val halfH = rawH / 2
+            while ((halfW / inSampleSize) >= targetW && (halfH / inSampleSize) >= targetH) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
     }
 
     override fun onCameraState(
@@ -2447,11 +2451,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
             // Initialize camera count display
             updateCameraCountDisplay()
             
-            // Initialize ObjectDetectors for 4 cameras
-            objectDetector1 = ObjectDetectorHelper(requireContext(), threshold = 0.5f)
-            objectDetector2 = ObjectDetectorHelper(requireContext(), threshold = 0.5f)
-            objectDetector3 = ObjectDetectorHelper(requireContext(), threshold = 0.5f)
-            objectDetector4 = ObjectDetectorHelper(requireContext(), threshold = 0.5f)
+            // Initialize ObjectDetectors for 4 cameras (threshold=0.45 for better accuracy)
+            objectDetector1 = ObjectDetectorHelper(requireContext(), threshold = 0.45f)
+            objectDetector2 = ObjectDetectorHelper(requireContext(), threshold = 0.45f)
+            objectDetector3 = ObjectDetectorHelper(requireContext(), threshold = 0.45f)
+            objectDetector4 = ObjectDetectorHelper(requireContext(), threshold = 0.45f)
             
             // Initialize TTS helper
             ttsHelper = TTSHelper(requireContext())

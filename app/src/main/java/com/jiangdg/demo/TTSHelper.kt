@@ -9,7 +9,7 @@ class TTSHelper(context: Context) : TextToSpeech.OnInitListener {
     private var isReady = false
     private var lastSpokenLabel: String? = null
     private var lastSpokenTime: Long = 0L
-    private val cooldownMillis: Long = 2000L  // Reduced from 3000 to 2000
+    private val cooldownMillis: Long = 1500L  // 1.5s cooldown between same-label speech
 
     init {
         try {
@@ -27,45 +27,38 @@ class TTSHelper(context: Context) : TextToSpeech.OnInitListener {
                 android.util.Log.e("TTSHelper", "Language not supported")
             } else {
                 isReady = true
-                android.util.Log.i("TTSHelper", "✅ TTS ready and initialized successfully")
+                // Set speech rate slightly faster for quicker announcements
+                tts?.setSpeechRate(1.1f)
+                android.util.Log.i("TTSHelper", "✅ TTS ready")
             }
         } else {
             android.util.Log.e("TTSHelper", "TTS initialization failed with status: $status")
         }
     }
 
-    fun speak(label: String, confidence: Float, yPosition: Float = 0.5f) {
+    /**
+     * Speak the detected label. Only requires label and confidence.
+     * No position filtering — speaks for any detected object.
+     */
+    fun speak(label: String, confidence: Float) {
         try {
-            val now = System.currentTimeMillis()
             if (!isReady) {
                 android.util.Log.w("TTSHelper", "⚠️ TTS not ready yet")
                 return
             }
-            if (confidence < 0.5f) {
-                android.util.Log.d("TTSHelper", "⏭️ Skipped: confidence too low ($label ${(confidence * 100).toInt()}%)")
+            if (confidence < 0.45f) {
                 return
             }
-            
-            android.util.Log.d("TTSHelper", "🎯 Detection: $label at Y: ${(yPosition * 100).toInt()}%, confidence: ${(confidence * 100).toInt()}%")
-            
-            // Only speak for objects in bottom part of frame (underneath)
-            // yPosition > 0.65 means bottom 35% of frame
-            if (yPosition <= 0.65f) {
-                android.util.Log.d("TTSHelper", "⏭️ Skipped: not in bottom area ($label Y: ${(yPosition * 100).toInt()}% needs >65%)")
-                return  // Skip if not in bottom area
-            }
-            
+
+            val now = System.currentTimeMillis()
+            // Speak if: different label OR cooldown expired
             val shouldSpeak = (label != lastSpokenLabel) || (now - lastSpokenTime > cooldownMillis)
             if (shouldSpeak) {
-                val confidencePercent = (confidence * 100).toInt()
                 val message = "$label under the vehicle"
-                
-                android.util.Log.i("TTSHelper", "🔊 Speaking: $message ($confidencePercent%, Y: ${(yPosition * 100).toInt()}%)")
+                android.util.Log.i("TTSHelper", "🔊 Speaking: $message (${(confidence * 100).toInt()}%)")
                 tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "detection")
                 lastSpokenLabel = label
                 lastSpokenTime = now
-            } else {
-                android.util.Log.d("TTSHelper", "⏭️ Skipped: cooldown active ($label)")
             }
         } catch (e: Exception) {
             android.util.Log.e("TTSHelper", "❌ Error during speak: ${e.message}")
