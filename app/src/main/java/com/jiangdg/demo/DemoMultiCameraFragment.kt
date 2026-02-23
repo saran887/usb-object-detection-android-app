@@ -2002,7 +2002,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 }
                 
                 // Log detection results for debugging (similar to MainActivity drawing logic)
-                if (results.isNotEmpty() && cameraIndex == currentActiveCameraIndex) {
+                if (results.isNotEmpty()) {
                     val topResult = results[0]
                     Log.d("ObjectDetection", "📱 Camera $cameraIndex: Detected ${topResult.label} (${String.format("%.2f", topResult.confidence)})")
                 }
@@ -2013,7 +2013,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                         overlayView.setResults(results)
                         
                         // TTS: speak on every detection frame (already skipped 10 raw frames)
-                        if (cameraIndex == currentActiveCameraIndex && results.isNotEmpty()) {
+                        if (results.isNotEmpty()) {
                             val label = results[0].label
                             val confidence = results[0].confidence
                             ttsHelper.speak(label, confidence)
@@ -2040,8 +2040,8 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         // Direct NV21 → ARGB_8888 using Android's built-in RenderScript-free path
         val yuvImage = android.graphics.YuvImage(data, android.graphics.ImageFormat.NV21, width, height, null)
         val out = java.io.ByteArrayOutputStream(width * height / 2) // preallocate smaller buffer
-        // Use low JPEG quality — detection model doesn't need lossy quality, only pixel data
-        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 50, out)
+        // Use high JPEG quality (100) — to avoid compression artifacts which ruin detection bounding boxes
+        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 100, out)
         val jpegBytes = out.toByteArray()
 
         // Decode directly at model input size to skip a second resize in detector
@@ -2054,7 +2054,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
 
         // Final resize to exactly 320x320 if inSampleSize didn't hit it exactly
         return if (bitmap.width != 320 || bitmap.height != 320) {
-            Bitmap.createScaledBitmap(bitmap, 320, 320, false).also {
+            Bitmap.createScaledBitmap(bitmap, 320, 320, true).also { // true is required for bounding boxes accuracy
                 if (it !== bitmap) bitmap.recycle()
             }
         } else {

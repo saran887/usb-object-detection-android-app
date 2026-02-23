@@ -11,7 +11,6 @@ import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
-// Data class for detection results
 data class DetectionResult(
     val label: String,
     val confidence: Float,
@@ -24,61 +23,41 @@ class ObjectDetectorHelper(
 ) {
     private var interpreter: Interpreter? = null
     private val labels: List<String>
-    private val inputSize = 320 // SSD MobileNet V3 input size
-    private val numDetections = 100 // Max detections per frame (model outputs 100)
-    private val NMS_IOU_THRESHOLD = 0.45f  // IoU threshold for Non-Maximum Suppression
+    private val inputSize = 320 // YOLOv8 input size
+    private val numAnchors = 2100 // YOLOv8 320x320 anchors
+    private val numElements = 84 // 4 (box) + 80 (classes)
+    private val NMS_IOU_THRESHOLD = 0.45f
 
     // Pre-allocated reusable buffers to avoid GC pressure
-    private val inputBuffer: ByteBuffer = ByteBuffer.allocateDirect(inputSize * inputSize * 3).apply {
+    private val inputBuffer: ByteBuffer = ByteBuffer.allocateDirect(inputSize * inputSize * 3 * 4).apply {
         order(ByteOrder.nativeOrder())
     }
     private val pixelBuffer = IntArray(inputSize * inputSize)
-    private val outputLocations = Array(1) { Array(numDetections) { FloatArray(4) } }
-    private val outputClasses = Array(1) { FloatArray(numDetections) }
-    private val outputScores = Array(1) { FloatArray(numDetections) }
-    private val numDetectionsOutput = FloatArray(1)
-    private val outputMap = HashMap<Int, Any>(4).apply {
-        put(0, outputLocations)
-        put(1, outputClasses)
-        put(2, outputScores)
-        put(3, numDetectionsOutput)
-    }
+    
+    // Output shape for YOLOv8 is [1, 84, 2100]
+    private val outputBuffer = Array(1) { Array(numElements) { FloatArray(numAnchors) } }
 
     init {
         try {
-            // Load the TFLite model
             val modelBuffer = loadModelFile("model.tflite")
             val options = Interpreter.Options()
 
-            // Use 4 CPU threads with XNNPACK for fast inference
             options.setNumThreads(4)
-            options.setUseXNNPACK(true)
-            Log.i(TAG, "Using 4 CPU threads + XNNPACK")
 
             interpreter = Interpreter(modelBuffer, options)
             
-            // Load labels from assets
             labels = try {
                 context.assets.open("labels.txt").bufferedReader().use { 
                     it.readLines().filter { line -> line.isNotBlank() }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Could not load labels.txt: ${e.message}")
-                try {
-                    context.assets.open("labelmap.txt").bufferedReader().use { 
-                        it.readLines().filter { line -> line.isNotBlank() }
-                    }
-                } catch (e2: Exception) {
-                    Log.w(TAG, "Could not load labelmap.txt, using defaults")
-                    listOf("person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light")
-                }
+                Log.w(TAG, "Could not load labels.txt: \${e.message}")
+                emptyList()
             }
-            
-            Log.i(TAG, "✅ Model initialized: model.tflite")
-            Log.i(TAG, "Labels: ${labels.size}, Input: ${inputSize}x${inputSize}, Threshold: $threshold")
+            Log.i(TAG, "✅ Model initialized: YOLOv8n. Labels: \${labels.size}")
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to initialize model: ${e.message}", e)
+            Log.e(TAG, "❌ Failed to initialize model: \${e.message}", e)
             throw e
         }
     }
@@ -87,137 +66,119 @@ class ObjectDetectorHelper(
         val fileDescriptor = context.assets.openFd(modelName)
         val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
         val fileChannel = inputStream.channel
-        val startOffset = fileDescriptor.startOffset
-        val declaredLength = fileDescriptor.declaredLength
-        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.startOffset, fileDescriptor.declaredLength)
     }
 
     fun detect(bitmap: Bitmap): List<DetectionResult> {
-        return try {
-            if (interpreter == null) {
-                Log.w(TAG, "Interpreter not initialized, skipping detection")
-                return emptyList()
-            }
+        val interp = interpreter ?: return emptyList()
 
-            val startTime = System.nanoTime()
-            
-            // Resize only if needed
-            val resizedBitmap = if (bitmap.width == inputSize && bitmap.height == inputSize) {
-                bitmap
-            } else {
-                Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, false) // bilinear=false is faster
-            }
+        val resizedBitmap = if (bitmap.width == inputSize && bitmap.height == inputSize) {
+            bitmap
+        } else {
+            Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true) 
+        }
 
-            // Fill pre-allocated input buffer
-            fillInputBuffer(resizedBitmap)
-            if (resizedBitmap !== bitmap) resizedBitmap.recycle()
+        fillInputBuffer(resizedBitmap)
+        if (resizedBitmap !== bitmap) resizedBitmap.recycle()
+        
+        try {
+            interp.run(inputBuffer, outputBuffer)
+        } catch (e: Exception) {
+            Log.e(TAG, "Inference error: \${e.message}")
+            return emptyList()
+        }
+        
+        val rawResults = mutableListOf<DetectionResult>()
+        val output = outputBuffer[0]
+        
+        // Output format: [84, 2100]
+        var maxOverallConf = 0f
+        
+        for (i in 0 until numAnchors) {
+            var maxClassConf = 0f
+            var maxClassId = -1
             
-            // Run inference using pre-allocated output buffers
-            try {
-                interpreter?.runForMultipleInputsOutputs(arrayOf(inputBuffer), outputMap)
-            } catch (e: IllegalArgumentException) {
-                Log.e(TAG, "Inference error: ${e.message}")
-                return emptyList()
-            } catch (e: Exception) {
-                Log.e(TAG, "Unexpected inference error: ${e.message}")
-                return emptyList()
-            }
-            
-            // Parse results with NMS
-            val rawResults = mutableListOf<DetectionResult>()
-            val numDetected = numDetectionsOutput[0].toInt().coerceAtMost(numDetections)
-            
-            for (i in 0 until numDetected) {
-                val score = outputScores[0][i]
-                if (score >= threshold) {
-                    val classIndex = outputClasses[0][i].toInt()
-                    val label = if (classIndex in labels.indices) labels[classIndex] else "Unknown"
-                    if (label == "???" || label == "Unknown") continue
-                    
-                    val loc = outputLocations[0][i]
-                    val boundingBox = RectF(
-                        loc[1] * inputSize, // xmin
-                        loc[0] * inputSize, // ymin
-                        loc[3] * inputSize, // xmax
-                        loc[2] * inputSize  // ymax
-                    )
-                    
-                    // Validate bounding box
-                    if (boundingBox.width() > 2f && boundingBox.height() > 2f &&
-                        boundingBox.left >= 0f && boundingBox.top >= 0f) {
-                        rawResults.add(DetectionResult(label, score, boundingBox))
-                    }
+            // Find class with highest confidence
+            for (c in 0 until 80) {
+                val conf = output[c + 4][i]
+                if (conf > maxClassConf) {
+                    maxClassConf = conf
+                    maxClassId = c
                 }
             }
             
-            // Apply Non-Maximum Suppression to remove duplicate/overlapping boxes
-            val results = applyNMS(rawResults)
-
-            val inferenceTimeMs = (System.nanoTime() - startTime) / 1_000_000.0
-            if (results.isNotEmpty()) {
-                Log.d(TAG, "Detected ${results.size} objects in ${String.format("%.1f", inferenceTimeMs)}ms: ${results.joinToString { "${it.label}(${(it.confidence*100).toInt()}%)" }}")
+            if (maxClassConf > maxOverallConf) {
+                maxOverallConf = maxClassConf
             }
             
-            results
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Detection failed: ${e.message}", e)
-            emptyList()
+            if (maxClassConf >= threshold) {
+                // YOLOv8 bounding boxes can be normalized (0.0 - 1.0) or raw pixels (0 - 320)
+                // We check if the values are normalized by seeing if width/height is <= 1.0
+                val isNormalized = output[2][0] <= 1.0f && output[3][0] <= 1.0f
+                
+                var cx = output[0][i]
+                var cy = output[1][i]
+                var w = output[2][i]
+                var h = output[3][i]
+                
+                if (isNormalized) {
+                    cx *= inputSize
+                    cy *= inputSize
+                    w *= inputSize
+                    h *= inputSize
+                }
+                
+                // Reduce bounding box size slightly by 15% for a tighter fit around the object
+                w *= 0.85f
+                h *= 0.85f
+                
+                val left = cx - w / 2f
+                val top = cy - h / 2f
+                val right = cx + w / 2f
+                val bottom = cy + h / 2f
+                
+                val boundingBox = RectF(left, top, right, bottom)
+                val label = if (maxClassId in labels.indices) labels[maxClassId] else "Unknown"
+                
+                rawResults.add(DetectionResult(label, maxClassConf, boundingBox))
+            }
         }
+        
+        Log.d(TAG, "Detection completed. Max confidence found: \$maxOverallConf. Filtered results: \${rawResults.size}")
+        return applyNMS(rawResults)
     }
 
-    /**
-     * Fill the pre-allocated input ByteBuffer from a bitmap.
-     * Avoids allocating a new ByteBuffer each frame.
-     */
     private fun fillInputBuffer(bitmap: Bitmap) {
         inputBuffer.rewind()
         bitmap.getPixels(pixelBuffer, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         
-        var pixel = 0
-        for (i in 0 until inputSize) {
-            for (j in 0 until inputSize) {
-                val value = pixelBuffer[pixel++]
-                inputBuffer.put((value shr 16 and 0xFF).toByte()) // R
-                inputBuffer.put((value shr 8 and 0xFF).toByte())  // G
-                inputBuffer.put((value and 0xFF).toByte())         // B
-            }
+        // YOLOv8 expects Float32 input, normalized to 0.0 - 1.0
+        for (pixel in pixelBuffer) {
+            inputBuffer.putFloat(((pixel shr 16 and 0xFF) / 255f)) // R
+            inputBuffer.putFloat(((pixel shr 8 and 0xFF) / 255f))  // G
+            inputBuffer.putFloat(((pixel and 0xFF) / 255f))        // B
         }
     }
 
-    /**
-     * Non-Maximum Suppression: removes overlapping boxes for the same class,
-     * keeping only the highest-confidence detection per region.
-     */
     private fun applyNMS(detections: List<DetectionResult>): List<DetectionResult> {
         if (detections.size <= 1) return detections
         
-        // Group by class label
-        val grouped = detections.groupBy { it.label }
         val kept = mutableListOf<DetectionResult>()
+        val grouped = detections.groupBy { it.label }
         
         for ((_, classDetections) in grouped) {
-            // Sort by confidence descending
             val sorted = classDetections.sortedByDescending { it.confidence }.toMutableList()
-            
             while (sorted.isNotEmpty()) {
                 val best = sorted.removeAt(0)
                 kept.add(best)
-                
-                // Remove all detections that overlap too much with the best one
                 sorted.removeAll { other ->
                     computeIoU(best.boundingBox, other.boundingBox) > NMS_IOU_THRESHOLD
                 }
             }
         }
-        
-        // Return sorted by confidence, top results first
         return kept.sortedByDescending { it.confidence }
     }
 
-    /**
-     * Compute Intersection over Union between two bounding boxes.
-     */
     private fun computeIoU(a: RectF, b: RectF): Float {
         val interLeft = maxOf(a.left, b.left)
         val interTop = maxOf(a.top, b.top)
@@ -239,10 +200,7 @@ class ObjectDetectorHelper(
         try {
             interpreter?.close()
             interpreter = null
-            Log.i(TAG, "🔄 Model resources released")
-        } catch (e: Exception) {
-            Log.w(TAG, "Warning during model cleanup: ${e.message}")
-        }
+        } catch (e: Exception) {}
     }
 
     companion object {
