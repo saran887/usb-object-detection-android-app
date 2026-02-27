@@ -841,13 +841,15 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                                     // Process frame for object detection (single camera - no bandwidth issues)
                                     when (format) {
                                         IPreviewDataCallBack.DataFormat.NV21 -> {
-                                            processFrame(data, width, height, cameraIndex)
+                                            processFrame(cameraIndex)
                                         }
                                         IPreviewDataCallBack.DataFormat.RGBA -> {
                                             // Convert RGBA to NV21 if needed
+                                            processFrame(cameraIndex)
                                         }
                                         else -> {
                                             Log.d("DemoMultiCameraFragment", "Unsupported format: $format for Camera $cameraIndex")
+                                            processFrame(cameraIndex)
                                         }
                                     }
                                 }
@@ -1227,17 +1229,17 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                                     
                                     when (format) {
                                         IPreviewDataCallBack.DataFormat.NV21 -> {
-                                            processFrame(data, width, height, cameraIndex)
+                                            processFrame(cameraIndex)
                                         }
                                         IPreviewDataCallBack.DataFormat.RGBA -> {
-                                            processFrame(data, width, height, cameraIndex)
+                                            processFrame(cameraIndex)
                                         }
                                         else -> {
                                             // Try to process anyway for unknown formats
                                             if (frameCount == 1) {
                                                 Log.w("DemoMultiCameraFragment", "⚠️ UNKNOWN FORMAT: Camera $cameraIndex using format $format")
                                             }
-                                            processFrame(data, width, height, cameraIndex)
+                                            processFrame(cameraIndex)
                                         }
                                     }
                                 } else {
@@ -1395,7 +1397,7 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                                                 // ToastUtils.show("RESTART SUCCESS: Camera $cameraIndex (${width}x${height}) // Removed for clean UI")
                                             }
                                             
-                                            processFrame(data, width, height, cameraIndex)
+                                            processFrame(cameraIndex)
                                         }
                                     }
                                 })
@@ -1943,10 +1945,11 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
     private var detectionFrameCounter = mutableMapOf<Int, Int>() // Counter per camera
     private val DETECTION_FRAME_SKIP = 10  // Skip 10 frames after a detection
     private var firstDetectionDone = mutableMapOf<Int, Boolean>() // Track if first detection happened
+    private var isProcessing = java.util.concurrent.atomic.AtomicBoolean(false) // Prevent unbounded executor queue backlog
     
-    private fun processFrame(data: ByteArray, width: Int, height: Int, cameraIndex: Int) {
-        // Skip frame processing if executor is busy to prevent blocking
-        if (executor.isShutdown || executor.isTerminated) return
+    private fun processFrame(cameraIndex: Int) {
+        // Skip frame processing if executor is busy to prevent blocking or queue backlog
+        if (executor.isShutdown || executor.isTerminated || isProcessing.get()) return
         
         // Check memory pressure - skip frames if memory is low
         val runtime = Runtime.getRuntime()
@@ -1965,43 +1968,33 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
         
         frameSkipCounter[cameraIndex] = 0
 
-        // On first open: process every frame until first object is detected.
-        // After first detection: skip 10 frames between detections.
-        val hadFirstDetection = firstDetectionDone[cameraIndex] ?: false
-        if (hadFirstDetection) {
-            val detCount = (detectionFrameCounter[cameraIndex] ?: 0) + 1
-            detectionFrameCounter[cameraIndex] = detCount
-            if (detCount < DETECTION_FRAME_SKIP) return
-            detectionFrameCounter[cameraIndex] = 0
-        }
+        // Always skip 10 frames between detections to add an explicit delay and reduce load
+        val detCount = (detectionFrameCounter[cameraIndex] ?: 0) + 1
+        detectionFrameCounter[cameraIndex] = detCount
+        if (detCount < DETECTION_FRAME_SKIP) return
+        detectionFrameCounter[cameraIndex] = 0
         
+        isProcessing.set(true)
         executor.execute {
+            var bitmap: Bitmap? = null
             try {
-                // Convert YUV data to Bitmap (similar to textureView.bitmap in MainActivity)
-                val bitmap = yuvToBitmap(data, width, height)
-                
                 // Get appropriate detector and overlay for this camera
-                val (detector, overlayView) = when (cameraIndex) {
-                    1 -> objectDetector1 to overlayView1
-                    2 -> objectDetector2 to overlayView2
-                    3 -> objectDetector3 to overlayView3
-                    4 -> objectDetector4 to overlayView4
+                val (detector, overlayView, textureView) = when (cameraIndex) {
+                    1 -> Triple(objectDetector1, overlayView1, mTextureView1)
+                    2 -> Triple(objectDetector2, overlayView2, mTextureView2)
+                    3 -> Triple(objectDetector3, overlayView3, mTextureView3)
+                    4 -> Triple(objectDetector4, overlayView4, mTextureView4)
                     else -> return@execute
                 }
                 
-                // Process frame similar to MainActivity approach:
-                // 1. Create TensorImage from bitmap (like MainActivity does with textureView.bitmap)
-                // 2. Apply preprocessing with ImageProcessor (resize to 300x300)  
-                // 3. Run model inference through detector.detect()
-                // 4. Extract results and filter by confidence threshold
+                // Using textureView.bitmap guarantees we get the correctly decoded visual frame,
+                // bypassing all raw format (MJPEG/YUYV/NV21) handling complexities.
+                bitmap = textureView?.bitmap ?: return@execute
+                
+                // Run model inference through detector.detect()
                 val results = detector.detect(bitmap)
 
-                // After first object is detected, enable frame skipping
-                if (results.isNotEmpty()) {
-                    firstDetectionDone[cameraIndex] = true
-                }
-                
-                // Log detection results for debugging (similar to MainActivity drawing logic)
+                // Log detection results for debugging
                 if (results.isNotEmpty()) {
                     val topResult = results[0]
                     Log.d("ObjectDetection", "📱 Camera $cameraIndex: Detected ${topResult.label} (${String.format("%.2f", topResult.confidence)})")
@@ -2027,55 +2020,14 @@ class DemoMultiCameraFragment : MultiCameraFragment(), ICameraStateCallBack {
                 mainHandler.post {
                     // ToastUtils.show("Frame processing error for Camera $cameraIndex: ${e.message}") // Removed for clean UI
                 }
+            } finally {
+                bitmap?.recycle()
+                isProcessing.set(false)
             }
         }
     }
 
-    /**
-     * Fast NV21 → Bitmap conversion using direct pixel rendering.
-     * Avoids the slow JPEG compress/decompress pipeline (~20-40ms saved).
-     * Outputs a 320x320 bitmap directly suitable for model input.
-     */
-    private fun yuvToBitmap(data: ByteArray, width: Int, height: Int): Bitmap {
-        // Direct NV21 → ARGB_8888 using Android's built-in RenderScript-free path
-        val yuvImage = android.graphics.YuvImage(data, android.graphics.ImageFormat.NV21, width, height, null)
-        val out = java.io.ByteArrayOutputStream(width * height / 2) // preallocate smaller buffer
-        // Use high JPEG quality (100) — to avoid compression artifacts which ruin detection bounding boxes
-        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 100, out)
-        val jpegBytes = out.toByteArray()
-
-        // Decode directly at model input size to skip a second resize in detector
-        val opts = android.graphics.BitmapFactory.Options().apply {
-            // Calculate inSampleSize: downsample during decode (very fast, power-of-2)
-            inSampleSize = calculateInSampleSize(width, height, 320, 320)
-            inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-        }
-        val bitmap = android.graphics.BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size, opts)
-
-        // Final resize to exactly 320x320 if inSampleSize didn't hit it exactly
-        return if (bitmap.width != 320 || bitmap.height != 320) {
-            Bitmap.createScaledBitmap(bitmap, 320, 320, true).also { // true is required for bounding boxes accuracy
-                if (it !== bitmap) bitmap.recycle()
-            }
-        } else {
-            bitmap
-        }
-    }
-
-    /**
-     * Calculate the largest inSampleSize (power of 2) that keeps both dimensions >= target.
-     */
-    private fun calculateInSampleSize(rawW: Int, rawH: Int, targetW: Int, targetH: Int): Int {
-        var inSampleSize = 1
-        if (rawW > targetW || rawH > targetH) {
-            val halfW = rawW / 2
-            val halfH = rawH / 2
-            while ((halfW / inSampleSize) >= targetW && (halfH / inSampleSize) >= targetH) {
-                inSampleSize *= 2
-            }
-        }
-        return inSampleSize
-    }
+    // Removed calculateInSampleSize as it was only used by yuvToBitmap
 
     override fun onCameraState(
         self: MultiCameraClient.ICamera,
