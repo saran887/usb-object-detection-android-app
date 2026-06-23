@@ -48,6 +48,21 @@
 JavaVM *globalJvm;
 const char * yuvClsPath = "com/jiangdg/natives/YUVUtils";
 const char * lameClsPath = "com/jiangdg/natives/LameMp3";
+const char * engineClsPath = "com/jiangdg/demo/NativeInferenceEngine";
+
+extern "C" {
+JNIEXPORT void JNICALL Java_com_jiangdg_demo_NativeInferenceEngine_preprocessNV21(
+        JNIEnv *env, jobject thiz,
+        jbyteArray nv21_data, jint width, jint height,
+        jobject out_buffer, jint target_width, jint target_height,
+        jboolean is_quantized, jfloat scale, jint zero_point);
+
+JNIEXPORT jint JNICALL Java_com_jiangdg_demo_NativeInferenceEngine_nativeNMS(
+        JNIEnv *env, jobject thiz,
+        jobject output_buffer, jint num_anchors, jint num_elements,
+        jfloat score_threshold, jfloat iou_threshold,
+        jfloatArray out_detections, jint max_detections);
+}
 
 static JNINativeMethod g_yuv_methods[] = {
         {"yuv420spToNv21", "([BII)V", (void *)yuv420spToNv21},
@@ -63,6 +78,11 @@ static JNINativeMethod g_lame_methods[] = {
         {"lameEncode", "([S[SI[B)I", (void *)lameEncode},
         {"lameFlush", "([B)I", (void *)lameFlush},
         {"lameClose", "()V", (void *)lameClose},
+};
+
+static JNINativeMethod g_engine_methods[] = {
+        {"preprocessNV21", "([BIILjava/nio/ByteBuffer;IIZFI)V", (void *)Java_com_jiangdg_demo_NativeInferenceEngine_preprocessNV21},
+        {"nativeNMS", "(Ljava/nio/ByteBuffer;IIFF[FI)I", (void *)Java_com_jiangdg_demo_NativeInferenceEngine_nativeNMS},
 };
 
 extern "C"
@@ -85,6 +105,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* jvm, void* reserved) {
     ret = env->RegisterNatives(lameLcs, g_lame_methods, NUM_METHODS(g_lame_methods));
     if( ret < 0) {
         LOG_E("Register lame mp3 natives failed, ret = %d", ret);
+    }
+    jclass engineLcs = env->FindClass(engineClsPath);
+    ret = env->RegisterNatives(engineLcs, g_engine_methods, NUM_METHODS(g_engine_methods));
+    if( ret < 0) {
+        LOG_E("Register native inference engine failed, ret = %d", ret);
     }
     LOGI("JNI_OnLoad success!");
     return JNI_VERSION_1_4;

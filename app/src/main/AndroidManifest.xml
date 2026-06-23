@@ -14,6 +14,10 @@
     <uses-feature android:name="android.hardware.camera"/>
     <uses-feature android:name="android.hardware.camera.autofocus"/>
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!--bugly permission need-->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -54,6 +58,22 @@
             </intent-filter>
             <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/default_device_filter" />
+        </receiver>
+
+        <!-- Foreground Service Registration -->
+        <service
+            android:name="com.jiangdg.demo.service.VehicleSafetyService"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- Auto Boot Receiver -->
+        <receiver
+            android:name="com.jiangdg.demo.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
         </receiver>
     </application>
 

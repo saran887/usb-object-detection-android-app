@@ -18,6 +18,8 @@ add_library(
         module/mp3/mp3.cpp
         proxy/proxy_yuv.cpp
         proxy/proxy_mp3.cpp
+        preprocessor/neon_preprocess.cpp
+        inference/native_nms.cpp
         nativelib.cpp)
 
 find_library(
